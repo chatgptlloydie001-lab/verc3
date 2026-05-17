@@ -192,6 +192,52 @@ function TierBadge({ isPremium }: { isPremium: boolean }) {
   );
 }
 
+const PAGE_SIZE = 12;
+
+function textValue(value?: string | null) {
+  return value?.trim() || "";
+}
+
+function getSessionStatus(session: CookieSession) {
+  return textValue(session.status) || "Available";
+}
+
+function getSessionPlan(session: CookieSession) {
+  return textValue(session.plan) || textValue(session.premium) || (session.is_premium ? "Premium" : "Standard");
+}
+
+function getSessionCountry(session: CookieSession) {
+  return textValue(session.country) || "—";
+}
+
+function getSessionBilling(session: CookieSession) {
+  return textValue(session.billing) || textValue(session.price) || "—";
+}
+
+function getSessionEmail(session: CookieSession) {
+  return textValue(session.email) || "—";
+}
+
+function getSessionMemberSince(session: CookieSession) {
+  return textValue(session.memberSince) || textValue(session.member_since);
+}
+
+function getSessionPaymentMethod(session: CookieSession) {
+  return textValue(session.paymentMethod) || textValue(session.payment_method);
+}
+
+function getSessionVideoQuality(session: CookieSession) {
+  return textValue(session.videoQuality) || textValue(session.video_quality);
+}
+
+function getSessionMaxStreams(session: CookieSession) {
+  return textValue(session.maxStreams) || textValue(session.max_streams);
+}
+
+function uniqueValues(values: string[]) {
+  return Array.from(new Set(values.filter(Boolean))).sort((a, b) => a.localeCompare(b));
+}
+
 interface HomeProps {
   onLogout: () => void;
 }
@@ -200,6 +246,10 @@ export default function Home({ onLogout }: HomeProps) {
   const [selectedSession, setSelectedSession] = useState<CookieSession | null>(null);
   const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
   const [sessionResults, setSessionResults] = useState<Record<number, CheckResult>>({});
+  const [searchQuery, setSearchQuery] = useState("");
+  const [planFilter, setPlanFilter] = useState("all");
+  const [countryFilter, setCountryFilter] = useState("all");
+  const [page, setPage] = useState(1);
   const { toast } = useToast();
 
   const { data: cookieData, isLoading } = useQuery<{ sessions: CookieSession[]; userIsPremium: boolean }>({
@@ -236,6 +286,35 @@ export default function Home({ onLogout }: HomeProps) {
     setCheckResult(null);
     checkMutation.mutate(session.id);
   };
+
+  const handleCloseDetails = () => {
+    setSelectedSession(null);
+    setCheckResult(null);
+  };
+
+  const planOptions = uniqueValues(sessions.map(getSessionPlan));
+  const countryOptions = uniqueValues(sessions.map(getSessionCountry).filter((value) => value !== "—"));
+  const query = searchQuery.trim().toLowerCase();
+  const filteredSessions = sessions.filter((session) => {
+    const plan = getSessionPlan(session);
+    const country = getSessionCountry(session);
+    const email = getSessionEmail(session);
+    const searchable = [
+      session.description || "",
+      getSessionStatus(session),
+      plan,
+      country,
+      email,
+      getSessionBilling(session),
+    ].join(" ").toLowerCase();
+
+    return (query === "" || searchable.includes(query)) && (planFilter === "all" || plan === planFilter) && (countryFilter === "all" || country === countryFilter);
+  });
+  const totalPages = Math.max(1, Math.ceil(filteredSessions.length / PAGE_SIZE));
+  const currentPage = Math.min(page, totalPages);
+  const paginatedSessions = filteredSessions.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
+  const startItem = filteredSessions.length === 0 ? 0 : (currentPage - 1) * PAGE_SIZE + 1;
+  const endItem = Math.min(currentPage * PAGE_SIZE, filteredSessions.length);
 
   const stats = [
     { label: "Total sessions", value: isLoading ? "—" : sessions.length.toString(), icon: Server },
@@ -276,166 +355,284 @@ export default function Home({ onLogout }: HomeProps) {
       </header>
 
       <main className="relative mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
-        <div className="grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
-          <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
-            <section className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.06] p-5 shadow-2xl shadow-black/30 backdrop-blur-2xl">
-              <div className="flex items-center gap-2 rounded-full border border-red-400/15 bg-red-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-red-200">
+        <div className="space-y-6">
+          <section className="grid gap-3 lg:grid-cols-[minmax(0,1.35fr)_repeat(3,minmax(0,.55fr))]" data-testid="dashboard-topbar">
+            <div className="rounded-[1.75rem] border border-white/10 bg-white/[0.06] p-5 shadow-2xl shadow-black/30 backdrop-blur-2xl">
+              <div className="flex items-center gap-2 rounded-full border border-red-400/15 bg-red-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-red-200 w-fit">
                 <Sparkles className="h-3.5 w-3.5" />
                 Verification hub
               </div>
-              <h2 className="mt-5 text-2xl font-semibold tracking-tight">Select, verify, and launch with confidence.</h2>
-              <p className="mt-3 text-sm leading-6 text-neutral-400">
-                Choose an available cookie session to run a live account status check and view key membership details.
-              </p>
-            </section>
+              <div className="mt-4 flex flex-wrap items-end justify-between gap-4">
+                <div>
+                  <h2 className="text-2xl font-semibold tracking-tight">Account directory</h2>
+                  <p className="mt-2 max-w-2xl text-sm leading-6 text-neutral-400">
+                    Browse Supabase account data, filter by plan/country/email, then open a card to generate nftoken links.
+                  </p>
+                </div>
+                <span className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-xs font-medium text-neutral-400">
+                  {filteredSessions.length} visible
+                </span>
+              </div>
+            </div>
 
-            <section className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-              {stats.map((stat) => (
-                <div key={stat.label} className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 backdrop-blur-xl">
-                  <div className="flex items-center justify-between gap-3">
-                    <div>
-                      <p className="text-xs font-medium uppercase tracking-[0.16em] text-neutral-500">{stat.label}</p>
-                      <p className="mt-2 text-2xl font-semibold text-white">{stat.value}</p>
-                    </div>
-                    <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-3">
-                      <stat.icon className="h-5 w-5 text-red-300" />
-                    </div>
+            {stats.map((stat) => (
+              <div key={stat.label} className="rounded-[1.35rem] border border-white/10 bg-white/[0.05] p-4 backdrop-blur-xl">
+                <div className="flex items-center justify-between gap-3">
+                  <div>
+                    <p className="text-[11px] font-medium uppercase tracking-[0.16em] text-neutral-500">{stat.label}</p>
+                    <p className="mt-2 text-2xl font-semibold text-white">{stat.value}</p>
+                  </div>
+                  <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-3">
+                    <stat.icon className="h-5 w-5 text-red-300" />
                   </div>
                 </div>
-              ))}
-            </section>
-          </aside>
+              </div>
+            ))}
+          </section>
 
           <section className="space-y-5">
-            <div className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.06] shadow-2xl shadow-black/20 backdrop-blur-2xl" data-testid="account-card-list">
-              <div className="border-b border-white/10 px-5 py-4 sm:px-6">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Account cards</p>
-                    <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">Choose an account to verify</h2>
+            {selectedSession ? (
+              <div className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.06] shadow-2xl shadow-black/25 backdrop-blur-2xl" data-testid="account-detail-card">
+                <div className="border-b border-white/10 px-5 py-4 sm:px-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Full account info</p>
+                      <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">{selectedSession.description || `Account #${selectedSession.id}`}</h2>
+                    </div>
+                    <button
+                      type="button"
+                      onClick={handleCloseDetails}
+                      className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-2 text-xs font-semibold text-neutral-300 transition-all hover:border-white/20 hover:bg-white/[0.075] hover:text-white"
+                      data-testid="button-close-details"
+                    >
+                      Close and back to cards
+                    </button>
                   </div>
-                  {!isLoading && sessions.length > 0 && (
-                    <span className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-xs font-medium text-neutral-400">{sessions.length} sessions</span>
+                </div>
+
+                <div className="grid gap-4 p-4 sm:p-6 lg:grid-cols-[minmax(0,.9fr)_minmax(0,1.1fr)]">
+                  <div className="rounded-[1.35rem] border border-white/10 bg-black/20 p-4">
+                    <div className="flex items-start justify-between gap-3">
+                      <div>
+                        <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Account #{selectedSession.id}</p>
+                        <h3 className="mt-1 text-lg font-semibold text-white">Supabase details</h3>
+                      </div>
+                      <TierBadge isPremium={selectedSession.is_premium} />
+                    </div>
+
+                    <div className="mt-5 grid gap-3 sm:grid-cols-2">
+                      <InfoRow icon={Shield} label="Status" value={getSessionStatus(selectedSession)} highlight />
+                      <InfoRow icon={Crown} label="Plan" value={getSessionPlan(selectedSession)} />
+                      <InfoRow icon={Globe} label="Country" value={getSessionCountry(selectedSession)} />
+                      <InfoRow icon={Mail} label="Email" value={getSessionEmail(selectedSession)} />
+                      <InfoRow icon={CreditCard} label="Billing" value={getSessionBilling(selectedSession)} />
+                      <InfoRow icon={Activity} label="Member since" value={getSessionMemberSince(selectedSession)} />
+                      <InfoRow icon={CreditCard} label="Payment method" value={getSessionPaymentMethod(selectedSession)} />
+                      <InfoRow icon={Smartphone} label="Phone" value={textValue(selectedSession.phone)} />
+                      <InfoRow icon={CheckCircle2} label="Video quality" value={getSessionVideoQuality(selectedSession)} />
+                      <InfoRow icon={Users} label="Max streams" value={getSessionMaxStreams(selectedSession)} />
+                      <InfoRow icon={Shield} label="Payment hold" value={textValue(selectedSession.paymentHold) || textValue(selectedSession.payment_hold)} />
+                      <InfoRow icon={Users} label="Extra member" value={textValue(selectedSession.extraMember) || textValue(selectedSession.extra_member)} />
+                      <InfoRow icon={Users} label="Profiles" value={textValue(selectedSession.profiles)} />
+                    </div>
+                  </div>
+
+                  <div className="rounded-[1.35rem] border border-white/10 bg-black/20 p-4" data-testid="result-panel">
+                    <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">nftoken generation</p>
+                        <h3 className="mt-1 text-lg font-semibold tracking-tight text-white">Watch links</h3>
+                      </div>
+                      <span className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-xs font-medium text-neutral-400">
+                        {checkMutation.isPending ? "Generating" : checkResult ? "Links ready" : "Awaiting result"}
+                      </span>
+                    </div>
+                    <ResultPanel result={checkResult} isChecking={checkMutation.isPending} />
+                  </div>
+                </div>
+              </div>
+            ) : (
+              <div className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.06] shadow-2xl shadow-black/20 backdrop-blur-2xl" data-testid="account-card-list">
+                <div className="border-b border-white/10 px-5 py-4 sm:px-6">
+                  <div className="flex flex-wrap items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Account cards</p>
+                      <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">Supabase account data</h2>
+                    </div>
+                    {!isLoading && sessions.length > 0 && (
+                      <span className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-xs font-medium text-neutral-400">
+                        Showing {startItem}-{endItem} of {filteredSessions.length}
+                      </span>
+                    )}
+                  </div>
+
+                  <div className="mt-4 grid gap-3 lg:grid-cols-[minmax(0,1fr)_12rem_12rem]">
+                    <label className="relative block">
+                      <SearchCheck className="pointer-events-none absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-neutral-500" />
+                      <input
+                        value={searchQuery}
+                        onChange={(event) => {
+                          setSearchQuery(event.target.value);
+                          setPage(1);
+                        }}
+                        placeholder="Search plan, country, email, billing..."
+                        className="h-11 w-full rounded-2xl border border-white/10 bg-black/25 pl-10 pr-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-red-300/35 focus:bg-black/35"
+                        data-testid="input-account-search"
+                      />
+                    </label>
+                    <select
+                      value={planFilter}
+                      onChange={(event) => {
+                        setPlanFilter(event.target.value);
+                        setPage(1);
+                      }}
+                      className="h-11 rounded-2xl border border-white/10 bg-black/25 px-3 text-sm text-white outline-none transition focus:border-red-300/35"
+                      data-testid="select-plan-filter"
+                    >
+                      <option value="all">All plans</option>
+                      {planOptions.map((plan) => (
+                        <option key={plan} value={plan}>{plan}</option>
+                      ))}
+                    </select>
+                    <select
+                      value={countryFilter}
+                      onChange={(event) => {
+                        setCountryFilter(event.target.value);
+                        setPage(1);
+                      }}
+                      className="h-11 rounded-2xl border border-white/10 bg-black/25 px-3 text-sm text-white outline-none transition focus:border-red-300/35"
+                      data-testid="select-country-filter"
+                    >
+                      <option value="all">All countries</option>
+                      {countryOptions.map((country) => (
+                        <option key={country} value={country}>{country}</option>
+                      ))}
+                    </select>
+                  </div>
+                </div>
+
+                <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-3">
+                  {isLoading ? (
+                    Array.from({ length: 6 }).map((_, index) => (
+                      <div key={index} className="min-h-52 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                        <div className="flex items-center gap-3">
+                          <Loader2 className="h-5 w-5 animate-spin text-neutral-500" />
+                          <span className="text-sm text-neutral-500">Loading account...</span>
+                        </div>
+                      </div>
+                    ))
+                  ) : sessions.length === 0 ? (
+                    <div className="col-span-full rounded-3xl border border-dashed border-white/10 bg-white/[0.025] px-6 py-12 text-center text-sm text-neutral-500">
+                      No account sessions are available yet.
+                    </div>
+                  ) : filteredSessions.length === 0 ? (
+                    <div className="col-span-full rounded-3xl border border-dashed border-white/10 bg-white/[0.025] px-6 py-12 text-center text-sm text-neutral-500">
+                      No accounts match the current search and filters.
+                    </div>
+                  ) : (
+                    paginatedSessions.map((session) => {
+                      const locked = session.is_premium && !isPremium;
+                      const summary = sessionResults[session.id];
+                      const checking = checkMutation.isPending && checkMutation.variables === session.id;
+                      const unavailable = checkMutation.isPending && checkMutation.variables !== session.id;
+                      const status = locked ? "Premium locked" : summary?.status || getSessionStatus(session);
+                      const plan = getSessionPlan(session);
+                      const country = getSessionCountry(session);
+                      const billing = getSessionBilling(session);
+                      const email = getSessionEmail(session);
+
+                      return (
+                        <button
+                          key={session.id}
+                          type="button"
+                          data-testid={`cookie-item-${session.id}`}
+                          onClick={() => handleSelect(session)}
+                          disabled={locked || unavailable}
+                          className={`group min-h-52 rounded-3xl border p-4 text-left transition-all ${
+                            locked
+                              ? "cursor-not-allowed border-amber-500/10 bg-amber-500/[0.03] opacity-60"
+                              : "border-white/10 bg-white/[0.04] hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.07]"
+                          }`}
+                        >
+                          <div className="flex items-start justify-between gap-3">
+                            <div className="min-w-0">
+                              <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Account #{session.id}</p>
+                              <h3 className="mt-1 truncate text-base font-semibold text-white">{session.description || email}</h3>
+                            </div>
+                            {session.is_premium ? (
+                              <span className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase ${locked ? "border-amber-600/20 bg-amber-600/10 text-amber-600" : "border-amber-400/20 bg-amber-400/10 text-amber-200"}`}>
+                                {locked ? <Lock className="h-3 w-3" /> : <Crown className="h-3 w-3" />}
+                                Premium
+                              </span>
+                            ) : (
+                              <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-semibold uppercase text-neutral-500">Free</span>
+                            )}
+                          </div>
+
+                          <div className="mt-4 grid gap-2 text-xs">
+                            <div className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 px-3 py-2">
+                              <span className="text-neutral-500">Status</span>
+                              <span className={`truncate font-semibold ${locked ? "text-amber-500" : summary?.valid ? "text-emerald-300" : "text-neutral-300"}`}>{status}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 px-3 py-2">
+                              <span className="text-neutral-500">Plan</span>
+                              <span className="truncate font-semibold text-white">{plan}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 px-3 py-2">
+                              <span className="text-neutral-500">Country</span>
+                              <span className="truncate font-semibold text-white">{country}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 px-3 py-2">
+                              <span className="text-neutral-500">Email</span>
+                              <span className="truncate font-semibold text-white">{email}</span>
+                            </div>
+                            <div className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 px-3 py-2">
+                              <span className="text-neutral-500">Billing</span>
+                              <span className="truncate font-semibold text-white">{billing}</span>
+                            </div>
+                          </div>
+
+                          <div className="mt-4 flex items-center justify-between gap-3 text-xs">
+                            <span className="text-neutral-500">Click for full info + nftoken</span>
+                            {checking ? (
+                              <Loader2 className="h-4 w-4 animate-spin text-red-300" />
+                            ) : summary?.watchLink ? (
+                              <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                            ) : null}
+                          </div>
+                        </button>
+                      );
+                    })
                   )}
                 </div>
-              </div>
 
-              <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-3">
-                {isLoading ? (
-                  Array.from({ length: 3 }).map((_, index) => (
-                    <div key={index} className="min-h-48 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
-                      <div className="flex items-center gap-3">
-                        <Loader2 className="h-5 w-5 animate-spin text-neutral-500" />
-                        <span className="text-sm text-neutral-500">Loading account...</span>
-                      </div>
-                    </div>
-                  ))
-                ) : sessions.length === 0 ? (
-                  <div className="col-span-full rounded-3xl border border-dashed border-white/10 bg-white/[0.025] px-6 py-12 text-center text-sm text-neutral-500">
-                    No account sessions are available yet.
-                  </div>
-                ) : (
-                  sessions.map((session) => {
-                    const locked = session.is_premium && !isPremium;
-                    const active = selectedSession?.id === session.id;
-                    const summary = sessionResults[session.id];
-                    const checking = checkMutation.isPending && active;
-                    const unavailable = checkMutation.isPending && !active;
-                    const status = locked ? "Premium locked" : checking ? "Checking..." : summary?.status || (summary ? "Checked" : "Not checked");
-                    const plan = summary?.plan || (session.is_premium ? "Premium pool" : "Standard");
-                    const country = summary?.country || "—";
-                    const billing = summary?.billing || summary?.price || "—";
-
-                    return (
+                {!isLoading && filteredSessions.length > 0 && (
+                  <div className="flex flex-wrap items-center justify-between gap-3 border-t border-white/10 px-5 py-4 text-sm text-neutral-400 sm:px-6">
+                    <span>Page {currentPage} of {totalPages}</span>
+                    <div className="flex items-center gap-2">
                       <button
-                        key={session.id}
                         type="button"
-                        data-testid={`cookie-item-${session.id}`}
-                        onClick={() => handleSelect(session)}
-                        disabled={locked || unavailable}
-                        className={`group min-h-48 rounded-3xl border p-4 text-left transition-all ${
-                          locked
-                            ? "cursor-not-allowed border-amber-500/10 bg-amber-500/[0.03] opacity-60"
-                            : active
-                              ? "border-red-400/30 bg-red-500/10 shadow-2xl shadow-red-950/20"
-                              : "border-white/10 bg-white/[0.04] hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.07]"
-                        }`}
+                        onClick={() => setPage((value) => Math.max(1, value - 1))}
+                        disabled={currentPage === 1}
+                        className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-2 text-xs font-semibold text-neutral-300 transition-all hover:border-white/20 hover:bg-white/[0.075] disabled:cursor-not-allowed disabled:opacity-40"
+                        data-testid="button-prev-page"
                       >
-                        <div className="flex items-start justify-between gap-3">
-                          <div className="min-w-0">
-                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Account #{session.id}</p>
-                            <h3 className="mt-1 truncate text-base font-semibold text-white">{session.description || `Cookie #${session.id}`}</h3>
-                          </div>
-                          {session.is_premium ? (
-                            <span className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase ${locked ? "border-amber-600/20 bg-amber-600/10 text-amber-600" : "border-amber-400/20 bg-amber-400/10 text-amber-200"}`}>
-                              {locked ? <Lock className="h-3 w-3" /> : <Crown className="h-3 w-3" />}
-                              Premium
-                            </span>
-                          ) : (
-                            <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-semibold uppercase text-neutral-500">Free</span>
-                          )}
-                        </div>
-
-                        <div className="mt-4 grid gap-2 text-xs">
-                          <div className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 px-3 py-2">
-                            <span className="text-neutral-500">Status</span>
-                            <span className={`font-semibold ${summary?.valid ? "text-emerald-300" : locked ? "text-amber-500" : "text-neutral-300"}`}>{status}</span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 px-3 py-2">
-                            <span className="text-neutral-500">Plan</span>
-                            <span className="truncate font-semibold text-white">{plan}</span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 px-3 py-2">
-                            <span className="text-neutral-500">Country</span>
-                            <span className="font-semibold text-white">{country}</span>
-                          </div>
-                          <div className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 px-3 py-2">
-                            <span className="text-neutral-500">Billing</span>
-                            <span className="truncate font-semibold text-white">{billing}</span>
-                          </div>
-                        </div>
-
-                        <div className="mt-4 flex items-center justify-between gap-3 text-xs">
-                          <span className="text-neutral-500">{summary?.watchLink ? "nftoken links ready" : "Click to show full details"}</span>
-                          {checking ? (
-                            <Loader2 className="h-4 w-4 animate-spin text-red-300" />
-                          ) : active ? (
-                            <CheckCircle2 className="h-4 w-4 text-emerald-300" />
-                          ) : null}
-                        </div>
+                        Previous
                       </button>
-                    );
-                  })
-                )}
-              </div>
-            </div>
-
-            <div className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.06] shadow-2xl shadow-black/25 backdrop-blur-2xl" data-testid="result-panel">
-              <div className="border-b border-white/10 px-5 py-4 sm:px-6">
-                <div className="flex flex-wrap items-center justify-between gap-3">
-                  <div>
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Session result</p>
-                    <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">Account verification</h2>
-                  </div>
-                  <span className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-xs font-medium text-neutral-400">
-                    {checkMutation.isPending ? "Running check" : checkResult ? "Result ready" : "Awaiting selection"}
-                  </span>
-                </div>
-              </div>
-              <div className="p-4 sm:p-6">
-                {!selectedSession && !checkMutation.isPending && (
-                  <div className="flex flex-col items-center justify-center rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-6 py-14 text-center text-neutral-500 sm:py-16">
-                    <Tv className="mb-4 h-12 w-12 opacity-40" />
-                    <p className="text-sm font-medium text-neutral-300">Select a session to begin</p>
-                    <p className="mt-2 max-w-sm text-sm leading-6 text-neutral-500">Your verification results and account details will appear here.</p>
+                      <button
+                        type="button"
+                        onClick={() => setPage((value) => Math.min(totalPages, value + 1))}
+                        disabled={currentPage === totalPages}
+                        className="rounded-full border border-white/10 bg-white/[0.045] px-4 py-2 text-xs font-semibold text-neutral-300 transition-all hover:border-white/20 hover:bg-white/[0.075] disabled:cursor-not-allowed disabled:opacity-40"
+                        data-testid="button-next-page"
+                      >
+                        Next
+                      </button>
+                    </div>
                   </div>
                 )}
-                <ResultPanel
-                  result={checkResult}
-                  isChecking={checkMutation.isPending}
-                />
               </div>
-            </div>
+            )}
           </section>
         </div>
       </main>

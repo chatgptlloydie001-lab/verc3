@@ -2,10 +2,37 @@ import { z } from "zod";
 
 export const cookieSessionSchema = z.object({
   id: z.number(),
-  cookies: z.any(),
+  cookies: z.any().nullable(),
   description: z.string().nullable(),
   is_premium: z.boolean().default(false),
-});
+  status: z.string().nullable().optional(),
+  premium: z.string().nullable().optional(),
+  country: z.string().nullable().optional(),
+  plan: z.string().nullable().optional(),
+  price: z.string().nullable().optional(),
+  memberSince: z.string().nullable().optional(),
+  member_since: z.string().nullable().optional(),
+  paymentMethod: z.string().nullable().optional(),
+  payment_method: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  phoneVerified: z.string().nullable().optional(),
+  phone_verified: z.string().nullable().optional(),
+  videoQuality: z.string().nullable().optional(),
+  video_quality: z.string().nullable().optional(),
+  maxStreams: z.string().nullable().optional(),
+  max_streams: z.string().nullable().optional(),
+  paymentHold: z.string().nullable().optional(),
+  payment_hold: z.string().nullable().optional(),
+  extraMember: z.string().nullable().optional(),
+  extra_member: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  emailVerified: z.string().nullable().optional(),
+  email_verified: z.string().nullable().optional(),
+  profiles: z.string().nullable().optional(),
+  billing: z.string().nullable().optional(),
+  rawData: z.string().nullable().optional(),
+  raw_data: z.string().nullable().optional(),
+}).passthrough();
 
 export type CookieSession = z.infer<typeof cookieSessionSchema>;
 
