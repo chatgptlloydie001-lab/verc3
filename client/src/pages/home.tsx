@@ -1,4 +1,4 @@
-import { useState, useEffect, useRef } from "react";
+import { useState } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { CookieSession, CheckResult } from "@shared/schema";
@@ -7,7 +7,6 @@ import logoImg from "@assets/icon-128_1771330377572.png";
 import {
   Activity,
   CheckCircle2,
-  ChevronDown,
   CreditCard,
   Crown,
   Globe,
@@ -200,8 +199,7 @@ interface HomeProps {
 export default function Home({ onLogout }: HomeProps) {
   const [selectedSession, setSelectedSession] = useState<CookieSession | null>(null);
   const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
-  const [dropdownOpen, setDropdownOpen] = useState(false);
-  const dropdownRef = useRef<HTMLDivElement>(null);
+  const [sessionResults, setSessionResults] = useState<Record<number, CheckResult>>({});
   const { toast } = useToast();
 
   const { data: cookieData, isLoading } = useQuery<{ sessions: CookieSession[]; userIsPremium: boolean }>({
@@ -212,15 +210,14 @@ export default function Home({ onLogout }: HomeProps) {
   const isPremium = cookieData?.userIsPremium === true;
   const premiumSessions = sessions.filter((session) => session.is_premium).length;
   const availableSessions = sessions.filter((session) => !session.is_premium || isPremium).length;
-  const selectedSessionLabel = selectedSession?.description || (selectedSession ? `Cookie #${selectedSession.id}` : "No session selected");
-
   const checkMutation = useMutation({
     mutationFn: async (sessionId: number) => {
       const res = await apiRequest("POST", "/api/check", { sessionId });
       return (await res.json()) as CheckResult;
     },
-    onSuccess: (data) => {
+    onSuccess: (data, sessionId) => {
       setCheckResult(data);
+      setSessionResults((current) => ({ ...current, [sessionId]: data }));
       if (!data.valid) {
         toast({ title: "Cookie is invalid or expired", variant: "destructive" });
       }
@@ -237,19 +234,8 @@ export default function Home({ onLogout }: HomeProps) {
     }
     setSelectedSession(session);
     setCheckResult(null);
-    setDropdownOpen(false);
     checkMutation.mutate(session.id);
   };
-
-  useEffect(() => {
-    function handleClickOutside(e: MouseEvent) {
-      if (dropdownRef.current && !dropdownRef.current.contains(e.target as Node)) {
-        setDropdownOpen(false);
-      }
-    }
-    document.addEventListener("mousedown", handleClickOutside);
-    return () => document.removeEventListener("mousedown", handleClickOutside);
-  }, []);
 
   const stats = [
     { label: "Total sessions", value: isLoading ? "—" : sessions.length.toString(), icon: Server },
@@ -321,81 +307,107 @@ export default function Home({ onLogout }: HomeProps) {
           </aside>
 
           <section className="space-y-5">
-            <div ref={dropdownRef} className="relative" data-testid="dropdown-container">
-              <button
-                onClick={() => setDropdownOpen((o) => !o)}
-                disabled={isLoading}
-                data-testid="button-dropdown"
-                className="group flex w-full items-center justify-between gap-4 rounded-[1.5rem] border border-white/10 bg-white/[0.06] px-4 py-4 text-left shadow-2xl shadow-black/20 backdrop-blur-2xl transition-all hover:border-white/20 hover:bg-white/[0.08] disabled:cursor-wait disabled:opacity-70 sm:px-5"
-              >
-                <div className="flex min-w-0 items-center gap-3">
-                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-[#111827]">
-                    {isLoading ? (
-                      <Loader2 className="h-5 w-5 animate-spin text-neutral-400" />
-                    ) : selectedSession ? (
-                      <CheckCircle2 className="h-5 w-5 text-emerald-300" />
-                    ) : (
-                      <SearchCheck className="h-5 w-5 text-neutral-500" />
-                    )}
+            <div className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.06] shadow-2xl shadow-black/20 backdrop-blur-2xl" data-testid="account-card-list">
+              <div className="border-b border-white/10 px-5 py-4 sm:px-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Account cards</p>
+                    <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">Choose an account to verify</h2>
                   </div>
-                  <div className="min-w-0">
-                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Cookie session</p>
-                    <p className={`mt-1 truncate text-sm sm:text-base ${selectedSession ? "font-semibold text-white" : "text-neutral-400"}`}>
-                      {isLoading ? "Loading sessions..." : selectedSessionLabel}
-                    </p>
-                  </div>
-                </div>
-                <div className="flex shrink-0 items-center gap-3">
                   {!isLoading && sessions.length > 0 && (
-                    <span className="hidden rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-xs font-medium text-neutral-400 sm:inline-flex">{sessions.length} sessions</span>
+                    <span className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-xs font-medium text-neutral-400">{sessions.length} sessions</span>
                   )}
-                  <ChevronDown className={`h-5 w-5 text-neutral-500 transition-transform duration-200 group-hover:text-neutral-300 ${dropdownOpen ? "rotate-180" : ""}`} />
                 </div>
-              </button>
+              </div>
 
-              {dropdownOpen && (
-                <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-[1.35rem] border border-white/10 bg-[#0d1118]/95 shadow-2xl shadow-black/70 backdrop-blur-2xl animate-in fade-in slide-in-from-top-1 duration-150">
-                  <div className="max-h-72 overflow-y-auto overscroll-contain p-2 sm:max-h-96">
-                    {sessions.length === 0 ? (
-                      <div className="px-4 py-8 text-center text-sm text-neutral-500">No sessions are available yet.</div>
-                    ) : (
-                      sessions.map((session) => {
-                        const locked = session.is_premium && !isPremium;
-                        return (
-                          <button
-                            key={session.id}
-                            data-testid={`cookie-item-${session.id}`}
-                            onClick={() => handleSelect(session)}
-                            className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm transition-all ${
-                              locked
-                                ? "cursor-not-allowed text-neutral-600"
-                                : selectedSession?.id === session.id
-                                  ? "bg-red-500/10 text-red-200 ring-1 ring-red-400/20"
-                                  : "text-neutral-300 hover:bg-white/[0.06] hover:text-white"
-                            }`}
-                          >
-                            <span className="flex h-8 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] font-mono text-xs text-neutral-500">{session.id}</span>
-                            <span className={`min-w-0 flex-1 truncate ${locked ? "text-neutral-600" : ""}`}>
-                              {session.description || `Cookie #${session.id}`}
-                            </span>
-                            {session.is_premium ? (
-                              <span className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase ${locked ? "border-amber-600/20 bg-amber-600/10 text-amber-600" : "border-amber-400/20 bg-amber-400/10 text-amber-200"}`}>
-                                {locked ? <Lock className="h-3 w-3" /> : <Crown className="h-3 w-3" />}
-                                Premium
-                              </span>
-                            ) : (
-                              <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-semibold uppercase text-neutral-500">Free</span>
-                            )}
-                            {selectedSession?.id === session.id && !locked && (
-                              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />
-                            )}
-                          </button>
-                        );
-                      })
-                    )}
+              <div className="grid gap-3 p-4 sm:grid-cols-2 sm:p-5 xl:grid-cols-3">
+                {isLoading ? (
+                  Array.from({ length: 3 }).map((_, index) => (
+                    <div key={index} className="min-h-48 rounded-3xl border border-white/10 bg-white/[0.04] p-4">
+                      <div className="flex items-center gap-3">
+                        <Loader2 className="h-5 w-5 animate-spin text-neutral-500" />
+                        <span className="text-sm text-neutral-500">Loading account...</span>
+                      </div>
+                    </div>
+                  ))
+                ) : sessions.length === 0 ? (
+                  <div className="col-span-full rounded-3xl border border-dashed border-white/10 bg-white/[0.025] px-6 py-12 text-center text-sm text-neutral-500">
+                    No account sessions are available yet.
                   </div>
-                </div>
-              )}
+                ) : (
+                  sessions.map((session) => {
+                    const locked = session.is_premium && !isPremium;
+                    const active = selectedSession?.id === session.id;
+                    const summary = sessionResults[session.id];
+                    const checking = checkMutation.isPending && active;
+                    const unavailable = checkMutation.isPending && !active;
+                    const status = locked ? "Premium locked" : checking ? "Checking..." : summary?.status || (summary ? "Checked" : "Not checked");
+                    const plan = summary?.plan || (session.is_premium ? "Premium pool" : "Standard");
+                    const country = summary?.country || "—";
+                    const billing = summary?.billing || summary?.price || "—";
+
+                    return (
+                      <button
+                        key={session.id}
+                        type="button"
+                        data-testid={`cookie-item-${session.id}`}
+                        onClick={() => handleSelect(session)}
+                        disabled={locked || unavailable}
+                        className={`group min-h-48 rounded-3xl border p-4 text-left transition-all ${
+                          locked
+                            ? "cursor-not-allowed border-amber-500/10 bg-amber-500/[0.03] opacity-60"
+                            : active
+                              ? "border-red-400/30 bg-red-500/10 shadow-2xl shadow-red-950/20"
+                              : "border-white/10 bg-white/[0.04] hover:-translate-y-0.5 hover:border-white/20 hover:bg-white/[0.07]"
+                        }`}
+                      >
+                        <div className="flex items-start justify-between gap-3">
+                          <div className="min-w-0">
+                            <p className="text-[11px] font-semibold uppercase tracking-[0.16em] text-neutral-500">Account #{session.id}</p>
+                            <h3 className="mt-1 truncate text-base font-semibold text-white">{session.description || `Cookie #${session.id}`}</h3>
+                          </div>
+                          {session.is_premium ? (
+                            <span className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase ${locked ? "border-amber-600/20 bg-amber-600/10 text-amber-600" : "border-amber-400/20 bg-amber-400/10 text-amber-200"}`}>
+                              {locked ? <Lock className="h-3 w-3" /> : <Crown className="h-3 w-3" />}
+                              Premium
+                            </span>
+                          ) : (
+                            <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-semibold uppercase text-neutral-500">Free</span>
+                          )}
+                        </div>
+
+                        <div className="mt-4 grid gap-2 text-xs">
+                          <div className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 px-3 py-2">
+                            <span className="text-neutral-500">Status</span>
+                            <span className={`font-semibold ${summary?.valid ? "text-emerald-300" : locked ? "text-amber-500" : "text-neutral-300"}`}>{status}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 px-3 py-2">
+                            <span className="text-neutral-500">Plan</span>
+                            <span className="truncate font-semibold text-white">{plan}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 px-3 py-2">
+                            <span className="text-neutral-500">Country</span>
+                            <span className="font-semibold text-white">{country}</span>
+                          </div>
+                          <div className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 px-3 py-2">
+                            <span className="text-neutral-500">Billing</span>
+                            <span className="truncate font-semibold text-white">{billing}</span>
+                          </div>
+                        </div>
+
+                        <div className="mt-4 flex items-center justify-between gap-3 text-xs">
+                          <span className="text-neutral-500">{summary?.watchLink ? "nftoken links ready" : "Click to show full details"}</span>
+                          {checking ? (
+                            <Loader2 className="h-4 w-4 animate-spin text-red-300" />
+                          ) : active ? (
+                            <CheckCircle2 className="h-4 w-4 text-emerald-300" />
+                          ) : null}
+                        </div>
+                      </button>
+                    );
+                  })
+                )}
+              </div>
             </div>
 
             <div className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.06] shadow-2xl shadow-black/25 backdrop-blur-2xl" data-testid="result-panel">
