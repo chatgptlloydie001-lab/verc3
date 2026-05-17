@@ -239,28 +239,15 @@ export async function registerRoutes(
     try {
       const userIsPremium = (req as any).userIsPremium === true;
 
-      let response = await supabaseRequest(
-        "cookie_sessions?select=id,description,cookies,is_premium&order=id.asc"
-      );
+      const response = await supabaseRequest("cookie_sessions?select=*&order=id.asc");
 
       if (!response.ok) {
-        const text = await response.text();
-        if (text.includes("is_premium") && text.includes("does not exist")) {
-          response = await supabaseRequest(
-            "cookie_sessions?select=id,description,cookies&order=id.asc"
-          );
-          if (!response.ok) {
-            log(`Supabase error: ${await response.text()}`);
-            return res.status(500).json({ message: "Failed to fetch cookies from database" });
-          }
-        } else {
-          log(`Supabase error: ${text}`);
-          return res.status(500).json({ message: "Failed to fetch cookies from database" });
-        }
+        log(`Supabase error: ${await response.text()}`);
+        return res.status(500).json({ message: "Failed to fetch cookies from database" });
       }
 
       const rawData = await response.json();
-      const data = (rawData as any[]).map((row) => ({
+      const data = (rawData as Array<{ is_premium?: boolean }>).map((row) => ({
         ...row,
         is_premium: row.is_premium === true,
       }));
@@ -274,8 +261,7 @@ export async function registerRoutes(
       const sessions = validated.data.map((session) => {
         if (session.is_premium && !userIsPremium) {
           return {
-            id: session.id,
-            description: session.description,
+            ...session,
             is_premium: true,
             cookies: null,
           };

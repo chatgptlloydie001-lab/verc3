@@ -120,10 +120,37 @@ const loginRequestSchema = z.object({
 
 const cookieSessionSchema = z.object({
   id: z.number(),
-  cookies: z.any(),
+  cookies: z.any().nullable(),
   description: z.string().nullable(),
   is_premium: z.boolean().default(false),
-});
+  status: z.string().nullable().optional(),
+  premium: z.string().nullable().optional(),
+  country: z.string().nullable().optional(),
+  plan: z.string().nullable().optional(),
+  price: z.string().nullable().optional(),
+  memberSince: z.string().nullable().optional(),
+  member_since: z.string().nullable().optional(),
+  paymentMethod: z.string().nullable().optional(),
+  payment_method: z.string().nullable().optional(),
+  phone: z.string().nullable().optional(),
+  phoneVerified: z.string().nullable().optional(),
+  phone_verified: z.string().nullable().optional(),
+  videoQuality: z.string().nullable().optional(),
+  video_quality: z.string().nullable().optional(),
+  maxStreams: z.string().nullable().optional(),
+  max_streams: z.string().nullable().optional(),
+  paymentHold: z.string().nullable().optional(),
+  payment_hold: z.string().nullable().optional(),
+  extraMember: z.string().nullable().optional(),
+  extra_member: z.string().nullable().optional(),
+  email: z.string().nullable().optional(),
+  emailVerified: z.string().nullable().optional(),
+  email_verified: z.string().nullable().optional(),
+  profiles: z.string().nullable().optional(),
+  billing: z.string().nullable().optional(),
+  rawData: z.string().nullable().optional(),
+  raw_data: z.string().nullable().optional(),
+}).passthrough();
 
 const checkRequestSchema = z.object({
   cookies: z.any().optional(),
@@ -994,24 +1021,15 @@ app.get("/api/cookies", verifyAuth, async (req: Request, res: Response) => {
   try {
     const userIsPremium = (req as any).userIsPremium === true;
 
-    let response = await supabaseRequest("cookie_sessions?select=id,description,cookies,is_premium&order=id.asc");
+    const response = await supabaseRequest("cookie_sessions?select=*&order=id.asc");
 
     if (!response.ok) {
-      const text = await response.text();
-      if (text.includes("is_premium") && text.includes("does not exist")) {
-        response = await supabaseRequest("cookie_sessions?select=id,description,cookies&order=id.asc");
-        if (!response.ok) {
-          log(`Supabase error: ${await response.text()}`);
-          return res.status(500).json({ message: "Failed to fetch cookies from database" });
-        }
-      } else {
-        log(`Supabase error: ${text}`);
-        return res.status(500).json({ message: "Failed to fetch cookies from database" });
-      }
+      log(`Supabase error: ${await response.text()}`);
+      return res.status(500).json({ message: "Failed to fetch cookies from database" });
     }
 
     const rawData = await response.json();
-    const data = (rawData as any[]).map((row) => ({ ...row, is_premium: row.is_premium === true }));
+    const data = (rawData as Array<{ is_premium?: boolean }>).map((row) => ({ ...row, is_premium: row.is_premium === true }));
 
     const validated = z.array(cookieSessionSchema).safeParse(data);
     if (!validated.success) {
@@ -1022,8 +1040,7 @@ app.get("/api/cookies", verifyAuth, async (req: Request, res: Response) => {
     const sessions = validated.data.map((session) => {
       if (session.is_premium && !userIsPremium) {
         return {
-          id: session.id,
-          description: session.description,
+          ...session,
           is_premium: true,
           cookies: null,
         };
