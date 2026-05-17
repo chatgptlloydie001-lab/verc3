@@ -31,20 +31,27 @@ function countryCodeFromValue(value?: string) {
   return tokens?.at(-1) || "";
 }
 
-function countryFlagFromValue(value?: string) {
+function countryFlagUrlFromValue(value?: string) {
   const code = countryCodeFromValue(value);
   if (!/^[A-Z]{2}$/.test(code)) return "";
-  return String.fromCodePoint(...code.split("").map((letter) => 127397 + letter.charCodeAt(0)));
+  return `https://flagcdn.com/w40/${code.toLowerCase()}.png`;
 }
 
 function CountryValue({ value }: { value?: string }) {
   if (!value) return null;
 
-  const flag = countryFlagFromValue(value);
+  const flagUrl = countryFlagUrlFromValue(value);
 
   return (
     <span className="inline-flex min-w-0 items-center gap-2">
-      {flag && <span className="shrink-0 text-base leading-none">{flag}</span>}
+      {flagUrl && (
+        <img
+          src={flagUrl}
+          alt=""
+          loading="lazy"
+          className="h-3.5 w-5 shrink-0 rounded-[3px] object-cover ring-1 ring-white/15"
+        />
+      )}
       <span className="min-w-0 truncate">{value}</span>
     </span>
   );
