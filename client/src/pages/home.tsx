@@ -37,8 +37,24 @@ function countryFlagUrlFromValue(value?: string) {
   return `https://flagcdn.com/w40/${code.toLowerCase()}.png`;
 }
 
+function displayCountryValue(value?: string) {
+  const trimmed = value?.trim();
+  if (!trimmed) return "";
+
+  const code = countryCodeFromValue(trimmed);
+  if (!code) return trimmed;
+
+  const parts = trimmed.split(/\s+/);
+  while (parts.length > 1 && parts.at(-1)?.toUpperCase() === code && parts.at(-2)?.toUpperCase() === code) {
+    parts.pop();
+  }
+
+  return parts.join(" ");
+}
+
 function CountryValue({ value }: { value?: string }) {
-  if (!value) return null;
+  const displayValue = displayCountryValue(value);
+  if (!displayValue) return null;
 
   const flagUrl = countryFlagUrlFromValue(value);
 
@@ -52,7 +68,7 @@ function CountryValue({ value }: { value?: string }) {
           className="h-3.5 w-5 shrink-0 rounded-[3px] object-cover ring-1 ring-white/15"
         />
       )}
-      <span className="min-w-0 truncate">{value}</span>
+      <span className="min-w-0 truncate">{displayValue}</span>
     </span>
   );
 }
