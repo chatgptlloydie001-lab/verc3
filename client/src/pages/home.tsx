@@ -19,6 +19,7 @@ import {
   SearchCheck,
   Server,
   Shield,
+  Smartphone,
   Sparkles,
   Tv,
   Users,
@@ -39,18 +40,24 @@ function InfoRow({
 }) {
   if (!value) return null;
   return (
-    <div className="flex items-start gap-3 rounded-2xl px-3 py-3 transition-colors hover:bg-white/[0.035]">
-      <div className="mt-0.5 rounded-xl border border-white/10 bg-white/[0.04] p-2">
-        <Icon className="h-4 w-4 shrink-0 text-neutral-400" />
-      </div>
-      <div className="min-w-0 flex-1">
-        <span className="text-[11px] font-medium uppercase tracking-[0.16em] text-neutral-500">{label}</span>
-        <p className={`mt-1 break-all text-sm font-medium ${highlight ? "text-emerald-300" : "text-white"}`}>
-          {value}
-        </p>
-      </div>
+    <div className="flex items-start gap-3 px-1 py-3.5 sm:px-2">
+      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500" />
+      <span className="w-28 shrink-0 text-sm text-neutral-400 sm:w-32">{label}</span>
+      <span className={`min-w-0 flex-1 break-words text-sm font-semibold ${highlight ? "text-emerald-300" : "text-white"}`}>
+        {value}
+      </span>
     </div>
   );
+}
+
+function getNetflixActionLink(watchLink: string, path: string) {
+  try {
+    const url = new URL(watchLink);
+    url.pathname = path;
+    return url.toString();
+  } catch {
+    return watchLink.replace(/netflix\.com\/[^?]*\?/, `netflix.com${path}?`);
+  }
 }
 
 function ResultPanel({
@@ -111,7 +118,7 @@ function ResultPanel({
         )}
       </div>
 
-      <div className="grid gap-2 sm:grid-cols-2">
+      <div className="divide-y divide-white/10 rounded-2xl border border-white/10 bg-[#0b0f16]/70 px-4 py-1">
         <InfoRow icon={Shield} label="Status" value={result.status} highlight />
         <InfoRow icon={CreditCard} label="Premium" value={result.premium} />
         <InfoRow icon={Globe} label="Country" value={result.country} />
@@ -129,26 +136,36 @@ function ResultPanel({
       </div>
 
       {result.watchLink && (
-        <div className="grid gap-3 sm:grid-cols-2">
+        <div className="grid gap-3">
           <a
             href={result.watchLink}
             target="_blank"
             rel="noopener noreferrer"
             data-testid="link-direct-watch"
-            className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-600 to-red-500 px-5 py-3.5 text-sm font-semibold text-white shadow-lg shadow-red-950/30 transition-all hover:-translate-y-0.5 hover:from-red-500 hover:to-red-400"
+            className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-600 to-red-500 px-5 py-3.5 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-red-950/30 transition-all hover:-translate-y-0.5 hover:from-red-500 hover:to-red-400"
           >
             <Play className="h-4 w-4" />
             Watch now
           </a>
           <a
-            href={result.watchLink.replace(/netflix\.com\/browse\?/, "netflix.com/unsupported?")}
+            href={getNetflixActionLink(result.watchLink, "/unsupported")}
             target="_blank"
             rel="noopener noreferrer"
             data-testid="link-netflix-app"
-            className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.05] px-5 py-3.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/[0.08]"
+            className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.08] px-5 py-3.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/[0.12]"
+          >
+            <Smartphone className="h-4 w-4" />
+            Watch on Netflix App
+          </a>
+          <a
+            href={getNetflixActionLink(result.watchLink, "/tv8")}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="link-watch-tv"
+            className="flex items-center justify-center gap-2 rounded-2xl bg-amber-400 px-5 py-3.5 text-sm font-semibold text-black transition-all hover:-translate-y-0.5 hover:bg-amber-300"
           >
             <Tv className="h-4 w-4" />
-            Netflix app
+            Watch on TV
           </a>
         </div>
       )}
