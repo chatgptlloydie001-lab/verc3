@@ -71,7 +71,7 @@ function ResultPanel({
 }: {
   result: CheckResult | null;
   isChecking: boolean;
-  onLaunch: (target: WatchTarget, fallbackLink?: string) => void;
+  onLaunch: (target: WatchTarget, watchLink?: string) => void;
   isLaunching: boolean;
   launchTarget: WatchTarget | null;
 }) {
@@ -108,6 +108,10 @@ function ResultPanel({
       </div>
     );
   }
+
+  const directWatchLink = result.watchLink;
+  const appWatchLink = result.watchLink ? getNetflixActionLink(result.watchLink, "/unsupported") : undefined;
+  const tvWatchLink = result.watchLink ? getNetflixActionLink(result.watchLink, "/tv8") : undefined;
 
   return (
     <div className="space-y-5">
@@ -146,8 +150,8 @@ function ResultPanel({
       <div className="grid gap-3">
         <button
           type="button"
-          onClick={() => onLaunch("direct", result.watchLink)}
-          disabled={isLaunching}
+          onClick={() => onLaunch("direct", directWatchLink)}
+          disabled={isLaunching || !directWatchLink}
           data-testid="button-direct-watch"
           className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-600 to-red-500 px-5 py-3.5 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-red-950/30 transition-all hover:-translate-y-0.5 hover:from-red-500 hover:to-red-400 disabled:cursor-wait disabled:opacity-70"
         >
@@ -156,8 +160,8 @@ function ResultPanel({
         </button>
         <button
           type="button"
-          onClick={() => onLaunch("app", result.watchLink ? getNetflixActionLink(result.watchLink, "/unsupported") : undefined)}
-          disabled={isLaunching}
+          onClick={() => onLaunch("app", appWatchLink)}
+          disabled={isLaunching || !appWatchLink}
           data-testid="button-netflix-app"
           className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.08] px-5 py-3.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/[0.12] disabled:cursor-wait disabled:opacity-70"
         >
@@ -166,8 +170,8 @@ function ResultPanel({
         </button>
         <button
           type="button"
-          onClick={() => onLaunch("tv", result.watchLink ? getNetflixActionLink(result.watchLink, "/tv8") : undefined)}
-          disabled={isLaunching}
+          onClick={() => onLaunch("tv", tvWatchLink)}
+          disabled={isLaunching || !tvWatchLink}
           data-testid="button-watch-tv"
           className="flex items-center justify-center gap-2 rounded-2xl bg-amber-400 px-5 py-3.5 text-sm font-semibold text-black transition-all hover:-translate-y-0.5 hover:bg-amber-300 disabled:cursor-wait disabled:opacity-70"
         >
@@ -234,61 +238,15 @@ export default function Home({ onLogout }: HomeProps) {
     },
   });
 
-  const watchMutation = useMutation({
-    mutationFn: async ({
-      target,
-      fallbackLink,
-      launchWindow,
-    }: {
-      target: WatchTarget;
-      fallbackLink?: string;
-      launchWindow: Window | null;
-    }) => {
-      if (!selectedSession) {
-        throw new Error("Select a session first");
-      }
-
-      try {
-        const res = await apiRequest("POST", "/api/watch", { sessionId: selectedSession.id, target });
-        const data = (await res.json()) as { success: boolean; watchLink?: string; error?: string };
-        if (data.success && data.watchLink) {
-          return { launchWindow, watchLink: data.watchLink };
-        }
-        throw new Error(data.error || "Watch link unavailable");
-      } catch (error) {
-        if (fallbackLink) {
-          return { launchWindow, watchLink: fallbackLink };
-        }
-        throw error;
-      }
-    },
-    onSuccess: ({ launchWindow, watchLink }) => {
-      if (launchWindow && !launchWindow.closed) {
-        launchWindow.location.href = watchLink;
-        return;
-      }
-      window.open(watchLink, "_blank", "noopener,noreferrer");
-    },
-    onError: (err: Error, variables) => {
-      if (variables.launchWindow && !variables.launchWindow.closed) {
-        variables.launchWindow.close();
-      }
-      toast({ title: "Watch link failed", description: err.message, variant: "destructive" });
-    },
-    onSettled: () => {
-      setLaunchTarget(null);
-    },
-  });
-
-  const handleLaunch = (target: WatchTarget, fallbackLink?: string) => {
-    const launchWindow = window.open("about:blank", "_blank");
-    if (launchWindow) {
-      launchWindow.opener = null;
-      launchWindow.document.title = "Opening Netflix";
-      launchWindow.document.body.innerHTML = "<p style='font-family: sans-serif; padding: 24px;'>Opening Netflix...</p>";
+  const handleLaunch = (target: WatchTarget, watchLink?: string) => {
+    if (!watchLink) {
+      toast({ title: "Watch link unavailable", description: "Select the account again to generate a fresh nftoken.", variant: "destructive" });
+      return;
     }
+
     setLaunchTarget(target);
-    watchMutation.mutate({ target, fallbackLink, launchWindow });
+    window.open(watchLink, "_blank", "noopener,noreferrer");
+    window.setTimeout(() => setLaunchTarget(null), 600);
   };
 
   const handleSelect = (session: CookieSession) => {
@@ -483,7 +441,7 @@ export default function Home({ onLogout }: HomeProps) {
                   result={checkResult}
                   isChecking={checkMutation.isPending}
                   onLaunch={handleLaunch}
-                  isLaunching={watchMutation.isPending}
+                  isLaunching={Boolean(launchTarget)}
                   launchTarget={launchTarget}
                 />
               </div>
