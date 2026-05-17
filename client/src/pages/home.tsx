@@ -1,4 +1,4 @@
-import { useState } from "react";
+import { useState, type ReactNode } from "react";
 import { useQuery, useMutation } from "@tanstack/react-query";
 import { apiRequest } from "@/lib/queryClient";
 import type { CookieSession, CheckResult } from "@shared/schema";
@@ -26,25 +26,53 @@ import {
   type LucideIcon,
 } from "lucide-react";
 
-function InfoRow({
+function countryCodeFromValue(value?: string) {
+  const tokens = value?.toUpperCase().match(/\b[A-Z]{2}\b/g);
+  return tokens?.at(-1) || "";
+}
+
+function countryFlagFromValue(value?: string) {
+  const code = countryCodeFromValue(value);
+  if (!/^[A-Z]{2}$/.test(code)) return "";
+  return String.fromCodePoint(...code.split("").map((letter) => 127397 + letter.charCodeAt(0)));
+}
+
+function CountryValue({ value }: { value?: string }) {
+  if (!value) return null;
+
+  const flag = countryFlagFromValue(value);
+
+  return (
+    <span className="inline-flex min-w-0 items-center gap-2">
+      {flag && <span className="shrink-0 text-base leading-none">{flag}</span>}
+      <span className="min-w-0 truncate">{value}</span>
+    </span>
+  );
+}
+
+function InfoTile({
   icon: Icon,
   label,
   value,
   highlight,
+  children,
 }: {
   icon: LucideIcon;
   label: string;
   value?: string;
   highlight?: boolean;
+  children?: ReactNode;
 }) {
-  if (!value) return null;
+  if (!value && !children) return null;
   return (
-    <div className="flex items-start gap-3 px-1 py-3.5 sm:px-2">
-      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500" />
-      <span className="w-28 shrink-0 text-sm text-neutral-400 sm:w-32">{label}</span>
-      <span className={`min-w-0 flex-1 break-words text-sm font-semibold ${highlight ? "text-emerald-300" : "text-white"}`}>
-        {value}
-      </span>
+    <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] p-4 transition-colors hover:border-white/15 hover:bg-white/[0.055]">
+      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-neutral-500">
+        <Icon className="h-4 w-4 shrink-0" />
+        <span>{label}</span>
+      </div>
+      <div className={`mt-2 min-w-0 break-words text-sm font-semibold leading-6 ${highlight ? "text-emerald-300" : "text-white"}`}>
+        {children || value}
+      </div>
     </div>
   );
 }
@@ -120,25 +148,27 @@ function ResultPanel({
         )}
       </div>
 
-      <div className="divide-y divide-white/10 rounded-2xl border border-white/10 bg-[#0b0f16]/70 px-4 py-1">
-        <InfoRow icon={Shield} label="Status" value={result.status} highlight />
-        <InfoRow icon={CreditCard} label="Premium" value={result.premium} />
-        <InfoRow icon={Globe} label="Country" value={result.country} />
-        <InfoRow icon={Tv} label="Plan" value={result.plan} />
-        <InfoRow icon={CreditCard} label="Price" value={result.price} />
-        <InfoRow icon={Users} label="Member Since" value={result.memberSince} />
-        <InfoRow icon={CreditCard} label="Payment" value={result.paymentMethod} />
-        <InfoRow icon={Mail} label="Email" value={result.email} />
-        <InfoRow icon={Shield} label="Verified" value={result.emailVerified} />
-        <InfoRow icon={Tv} label="Quality" value={result.videoQuality} />
-        <InfoRow icon={Users} label="Max Streams" value={result.maxStreams} />
-        <InfoRow icon={Users} label="Extra Member" value={result.extraMember} />
-        <InfoRow icon={Users} label="Profiles" value={result.profiles} />
-        <InfoRow icon={CreditCard} label="Billing" value={result.billing} />
+      <div className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
+        <InfoTile icon={Shield} label="Status" value={result.status} highlight />
+        <InfoTile icon={CreditCard} label="Premium" value={result.premium} />
+        <InfoTile icon={Globe} label="Country" value={result.country}>
+          <CountryValue value={result.country} />
+        </InfoTile>
+        <InfoTile icon={Tv} label="Plan" value={result.plan} />
+        <InfoTile icon={CreditCard} label="Price" value={result.price} />
+        <InfoTile icon={Users} label="Member Since" value={result.memberSince} />
+        <InfoTile icon={CreditCard} label="Payment" value={result.paymentMethod} />
+        <InfoTile icon={Mail} label="Email" value={result.email} />
+        <InfoTile icon={Shield} label="Verified" value={result.emailVerified} />
+        <InfoTile icon={Tv} label="Quality" value={result.videoQuality} />
+        <InfoTile icon={Users} label="Max Streams" value={result.maxStreams} />
+        <InfoTile icon={Users} label="Extra Member" value={result.extraMember} />
+        <InfoTile icon={Users} label="Profiles" value={result.profiles} />
+        <InfoTile icon={CreditCard} label="Billing" value={result.billing} />
       </div>
 
       {directWatchLink && (
-        <div className="grid gap-3">
+        <div className="grid gap-3 lg:grid-cols-3">
           <a
             href={directWatchLink}
             target="_blank"
@@ -563,7 +593,7 @@ export default function Home({ onLogout }: HomeProps) {
                             </div>
                             <div className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 px-3 py-2">
                               <span className="text-neutral-500">Country</span>
-                              <span className="truncate font-semibold text-white">{country}</span>
+                              <span className="min-w-0 truncate font-semibold text-white"><CountryValue value={country} /></span>
                             </div>
                             <div className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 px-3 py-2">
                               <span className="text-neutral-500">Email</span>
