@@ -144,30 +144,51 @@ function ResultPanel({
             target="_blank"
             rel="noopener noreferrer"
             data-testid="button-direct-watch"
-            className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-600 to-red-500 px-5 py-3.5 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-red-950/30 transition-all hover:-translate-y-0.5 hover:from-red-500 hover:to-red-400"
+            className="group flex items-center justify-between gap-4 rounded-2xl bg-gradient-to-r from-red-600 to-red-500 px-5 py-4 text-white shadow-lg shadow-red-950/30 transition-all hover:-translate-y-0.5 hover:from-red-500 hover:to-red-400 hover:shadow-red-950/45"
           >
-            <Play className="h-4 w-4" />
-            Watch now
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="rounded-xl bg-white/15 p-2.5 transition group-hover:bg-white/25">
+                <Play className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 text-left">
+                <span className="block text-sm font-semibold uppercase tracking-wide">Watch now</span>
+                <span className="block truncate text-xs text-red-100/80">Open Netflix web</span>
+              </span>
+            </span>
           </a>
           <a
             href={appWatchLink}
             target="_blank"
             rel="noopener noreferrer"
             data-testid="button-netflix-app"
-            className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.08] px-5 py-3.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/[0.12]"
+            className="group flex items-center justify-between gap-4 rounded-2xl border border-white/10 bg-gradient-to-r from-neutral-800 to-neutral-700 px-5 py-4 text-white shadow-lg shadow-black/20 transition-all hover:-translate-y-0.5 hover:border-white/20 hover:from-neutral-700 hover:to-neutral-600"
           >
-            <Smartphone className="h-4 w-4" />
-            Watch on Netflix App
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="rounded-xl bg-white/10 p-2.5 transition group-hover:bg-white/20">
+                <Smartphone className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 text-left">
+                <span className="block text-sm font-semibold">Watch on Netflix App</span>
+                <span className="block truncate text-xs text-neutral-300">Open mobile app route</span>
+              </span>
+            </span>
           </a>
           <a
             href={tvWatchLink}
             target="_blank"
             rel="noopener noreferrer"
             data-testid="button-watch-tv"
-            className="flex items-center justify-center gap-2 rounded-2xl bg-amber-400 px-5 py-3.5 text-sm font-semibold text-black transition-all hover:-translate-y-0.5 hover:bg-amber-300"
+            className="group flex items-center justify-between gap-4 rounded-2xl bg-gradient-to-r from-amber-400 to-yellow-500 px-5 py-4 text-black shadow-lg shadow-amber-950/20 transition-all hover:-translate-y-0.5 hover:from-amber-300 hover:to-yellow-400"
           >
-            <Tv className="h-4 w-4" />
-            Watch on TV
+            <span className="flex min-w-0 items-center gap-3">
+              <span className="rounded-xl bg-black/10 p-2.5 transition group-hover:bg-black/15">
+                <Tv className="h-4 w-4" />
+              </span>
+              <span className="min-w-0 text-left">
+                <span className="block text-sm font-semibold">Watch on TV</span>
+                <span className="block truncate text-xs text-black/60">Open TV mode route</span>
+              </span>
+            </span>
           </a>
         </div>
       )}
@@ -210,131 +231,12 @@ function getSessionCountry(session: CookieSession) {
   return textValue(session.country) || "—";
 }
 
-function getSessionBilling(session: CookieSession) {
-  return textValue(session.billing) || textValue(session.price) || "—";
-}
-
 function getSessionEmail(session: CookieSession) {
   return textValue(session.email) || "—";
 }
 
-function getSessionMemberSince(session: CookieSession) {
-  return textValue(session.memberSince) || textValue(session.member_since);
-}
-
-function getSessionPaymentMethod(session: CookieSession) {
-  return textValue(session.paymentMethod) || textValue(session.payment_method);
-}
-
-function getSessionVideoQuality(session: CookieSession) {
-  return textValue(session.videoQuality) || textValue(session.video_quality);
-}
-
-function getSessionMaxStreams(session: CookieSession) {
-  return textValue(session.maxStreams) || textValue(session.max_streams);
-}
-
 function uniqueValues(values: string[]) {
   return Array.from(new Set(values.filter(Boolean))).sort((a, b) => a.localeCompare(b));
-}
-
-function DetailMetric({
-  icon: Icon,
-  label,
-  value,
-  highlight,
-}: {
-  icon: LucideIcon;
-  label: string;
-  value?: string;
-  highlight?: boolean;
-}) {
-  if (!value) return null;
-
-  return (
-    <div className="min-w-0 rounded-2xl border border-white/10 bg-white/[0.035] p-4">
-      <div className="flex items-center gap-2 text-xs font-medium uppercase tracking-[0.14em] text-neutral-500">
-        <Icon className="h-4 w-4 shrink-0" />
-        <span>{label}</span>
-      </div>
-      <p className={`mt-2 break-words text-sm font-semibold leading-6 ${highlight ? "text-emerald-300" : "text-white"}`}>{value}</p>
-    </div>
-  );
-}
-
-function WatchLinksPanel({ result, isChecking }: { result: CheckResult | null; isChecking: boolean }) {
-  if (isChecking) {
-    return (
-      <div className="rounded-[1.35rem] border border-white/10 bg-white/[0.035] p-5 text-center">
-        <Loader2 className="mx-auto h-8 w-8 animate-spin text-red-300" />
-        <p className="mt-3 text-sm font-semibold text-white">Generating secure nftoken links</p>
-        <p className="mt-1 text-xs text-neutral-500">Watch targets will appear here after verification.</p>
-      </div>
-    );
-  }
-
-  if (!result) {
-    return (
-      <div className="rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] p-8 text-center">
-        <Play className="mx-auto h-10 w-10 text-neutral-600" />
-        <p className="mt-3 text-sm font-semibold text-neutral-300">Waiting for account verification</p>
-        <p className="mt-1 text-xs text-neutral-500">Select an account card to generate launch links.</p>
-      </div>
-    );
-  }
-
-  const valid = result.valid && Boolean(result.watchLink);
-  const links = result.watchLink
-    ? [
-        { label: "Watch now", description: "Open Netflix web", icon: Play, href: buildNetflixLink(result.watchLink, "browse"), testId: "link-watch-now" },
-        { label: "Netflix app", description: "Open app route", icon: Smartphone, href: buildNetflixLink(result.watchLink, "unsupported"), testId: "link-watch-app" },
-        { label: "TV mode", description: "Open TV route", icon: Tv, href: buildNetflixLink(result.watchLink, "tv8"), testId: "link-watch-tv" },
-      ]
-    : [];
-
-  return (
-    <div className="space-y-4">
-      <div className={`rounded-[1.35rem] border p-4 ${valid ? "border-emerald-400/20 bg-emerald-400/10" : "border-red-400/20 bg-red-400/10"}`}>
-        <div className="flex items-center gap-3">
-          <div className={`rounded-2xl p-2 ${valid ? "bg-emerald-400/15 text-emerald-200" : "bg-red-400/15 text-red-200"}`}>
-            {valid ? <CheckCircle2 className="h-5 w-5" /> : <XCircle className="h-5 w-5" />}
-          </div>
-          <div className="min-w-0 flex-1">
-            <p className={`text-sm font-semibold ${valid ? "text-emerald-200" : "text-red-200"}`}>{valid ? "nftoken links ready" : "Unable to generate links"}</p>
-            <p className="mt-1 text-xs text-neutral-400">{valid ? "Use one of the launch buttons below." : result.error || "This account did not return a usable watch token."}</p>
-          </div>
-          <span className="hidden rounded-full border border-white/10 bg-white/[0.05] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.12em] text-neutral-300 sm:inline-flex">
-            {result.plan || result.premium || "Checked"}
-          </span>
-        </div>
-      </div>
-
-      {valid && (
-        <div className="grid gap-3 sm:grid-cols-3">
-          {links.map((link) => (
-            <a
-              key={link.label}
-              href={link.href}
-              target="_blank"
-              rel="noopener noreferrer"
-              data-testid={link.testId}
-              className="group rounded-[1.2rem] border border-red-400/20 bg-gradient-to-br from-red-500 to-red-700 p-4 text-white shadow-lg shadow-red-950/25 transition-all hover:-translate-y-0.5 hover:shadow-red-950/40"
-            >
-              <div className="flex items-center gap-3">
-                <span className="rounded-2xl bg-white/15 p-2 transition group-hover:bg-white/25">
-                  <link.icon className="h-5 w-5" />
-                </span>
-                <span className="min-w-0">
-                  <span className="block text-sm font-semibold">{link.label}</span>
-                  <span className="block truncate text-xs text-red-100/80">{link.description}</span>
-                </span>
-              </div>
-            </a>
-          ))}
-        </div>
-      )}
-    </div>
-  );
 }
 
 interface HomeProps {
@@ -404,7 +306,6 @@ export default function Home({ onLogout }: HomeProps) {
       plan,
       country,
       email,
-      getSessionBilling(session),
     ].join(" ").toLowerCase();
 
     return (query === "" || searchable.includes(query)) && (planFilter === "all" || plan === planFilter) && (countryFilter === "all" || country === countryFilter);
@@ -519,50 +420,18 @@ export default function Home({ onLogout }: HomeProps) {
                   </div>
                 </div>
 
-                <div className="space-y-4 p-4 sm:p-6">
-                  <div className="grid gap-3 md:grid-cols-2 xl:grid-cols-5">
-                    <DetailMetric icon={Shield} label="Status" value={getSessionStatus(selectedSession)} highlight />
-                    <DetailMetric icon={Crown} label="Plan" value={getSessionPlan(selectedSession)} />
-                    <DetailMetric icon={Globe} label="Country" value={getSessionCountry(selectedSession)} />
-                    <DetailMetric icon={Mail} label="Email" value={getSessionEmail(selectedSession)} />
-                    <DetailMetric icon={CreditCard} label="Billing" value={getSessionBilling(selectedSession)} />
-                  </div>
-
-                  <div className="grid gap-4 lg:grid-cols-[minmax(0,1fr)_25rem] xl:grid-cols-[minmax(0,1fr)_27rem]">
-                    <div className="rounded-[1.35rem] border border-white/10 bg-black/20 p-4">
-                      <div className="flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Stored Supabase profile</p>
-                          <h3 className="mt-1 text-lg font-semibold text-white">Membership details</h3>
-                        </div>
-                        <TierBadge isPremium={selectedSession.is_premium} />
+                <div className="p-4 sm:p-6">
+                  <div className="rounded-[1.35rem] border border-white/10 bg-black/25 p-4 sm:p-5" data-testid="result-panel">
+                    <div className="mb-5 flex flex-wrap items-center justify-between gap-3">
+                      <div>
+                        <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Generated account details</p>
+                        <h3 className="mt-1 text-lg font-semibold tracking-tight text-white">Live nftoken result</h3>
                       </div>
-
-                      <div className="mt-4 grid gap-3 sm:grid-cols-2 xl:grid-cols-3">
-                        <DetailMetric icon={Activity} label="Member since" value={getSessionMemberSince(selectedSession)} />
-                        <DetailMetric icon={CreditCard} label="Payment method" value={getSessionPaymentMethod(selectedSession)} />
-                        <DetailMetric icon={Smartphone} label="Phone" value={textValue(selectedSession.phone)} />
-                        <DetailMetric icon={CheckCircle2} label="Video quality" value={getSessionVideoQuality(selectedSession)} />
-                        <DetailMetric icon={Users} label="Max streams" value={getSessionMaxStreams(selectedSession)} />
-                        <DetailMetric icon={Shield} label="Verified email" value={textValue(selectedSession.emailVerified) || textValue(selectedSession.email_verified)} />
-                        <DetailMetric icon={Shield} label="Payment hold" value={textValue(selectedSession.paymentHold) || textValue(selectedSession.payment_hold)} />
-                        <DetailMetric icon={Users} label="Extra member" value={textValue(selectedSession.extraMember) || textValue(selectedSession.extra_member)} />
-                        <DetailMetric icon={Users} label="Profiles" value={textValue(selectedSession.profiles)} />
-                      </div>
+                      <span className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-xs font-medium text-neutral-400">
+                        {checkMutation.isPending ? "Generating" : checkResult ? "Ready" : "Pending"}
+                      </span>
                     </div>
-
-                    <div className="rounded-[1.35rem] border border-white/10 bg-black/20 p-4" data-testid="result-panel">
-                      <div className="mb-4 flex flex-wrap items-center justify-between gap-3">
-                        <div>
-                          <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">nftoken generation</p>
-                          <h3 className="mt-1 text-lg font-semibold tracking-tight text-white">Launch actions</h3>
-                        </div>
-                        <span className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-xs font-medium text-neutral-400">
-                          {checkMutation.isPending ? "Generating" : checkResult ? "Ready" : "Pending"}
-                        </span>
-                      </div>
-                      <WatchLinksPanel result={checkResult} isChecking={checkMutation.isPending} />
-                    </div>
+                    <ResultPanel result={checkResult} isChecking={checkMutation.isPending} />
                   </div>
                 </div>
               </div>
@@ -590,7 +459,7 @@ export default function Home({ onLogout }: HomeProps) {
                           setSearchQuery(event.target.value);
                           setPage(1);
                         }}
-                        placeholder="Search plan, country, email, billing..."
+                        placeholder="Search plan, country, or email..."
                         className="h-11 w-full rounded-2xl border border-white/10 bg-black/25 pl-10 pr-3 text-sm text-white outline-none transition placeholder:text-neutral-600 focus:border-red-300/35 focus:bg-black/35"
                         data-testid="input-account-search"
                       />
@@ -653,7 +522,6 @@ export default function Home({ onLogout }: HomeProps) {
                       const status = locked ? "Premium locked" : summary?.status || getSessionStatus(session);
                       const plan = getSessionPlan(session);
                       const country = getSessionCountry(session);
-                      const billing = getSessionBilling(session);
                       const email = getSessionEmail(session);
 
                       return (
@@ -700,10 +568,6 @@ export default function Home({ onLogout }: HomeProps) {
                             <div className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 px-3 py-2">
                               <span className="text-neutral-500">Email</span>
                               <span className="truncate font-semibold text-white">{email}</span>
-                            </div>
-                            <div className="flex items-center justify-between gap-3 rounded-2xl bg-black/20 px-3 py-2">
-                              <span className="text-neutral-500">Billing</span>
-                              <span className="truncate font-semibold text-white">{billing}</span>
                             </div>
                           </div>
 
