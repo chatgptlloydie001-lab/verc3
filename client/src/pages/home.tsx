@@ -60,12 +60,20 @@ function getNetflixActionLink(watchLink: string, path: string) {
   }
 }
 
+type WatchTarget = "direct" | "app" | "tv";
+
 function ResultPanel({
   result,
   isChecking,
+  onLaunch,
+  isLaunching,
+  launchTarget,
 }: {
   result: CheckResult | null;
   isChecking: boolean;
+  onLaunch: (target: WatchTarget, fallbackLink?: string) => void;
+  isLaunching: boolean;
+  launchTarget: WatchTarget | null;
 }) {
   if (isChecking) {
     return (
@@ -135,40 +143,38 @@ function ResultPanel({
         <InfoRow icon={CreditCard} label="Billing" value={result.billing} />
       </div>
 
-      {result.watchLink && (
-        <div className="grid gap-3">
-          <a
-            href={result.watchLink}
-            target="_blank"
-            rel="noopener noreferrer"
-            data-testid="link-direct-watch"
-            className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-600 to-red-500 px-5 py-3.5 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-red-950/30 transition-all hover:-translate-y-0.5 hover:from-red-500 hover:to-red-400"
-          >
-            <Play className="h-4 w-4" />
-            Watch now
-          </a>
-          <a
-            href={getNetflixActionLink(result.watchLink, "/unsupported")}
-            target="_blank"
-            rel="noopener noreferrer"
-            data-testid="link-netflix-app"
-            className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.08] px-5 py-3.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/[0.12]"
-          >
-            <Smartphone className="h-4 w-4" />
-            Watch on Netflix App
-          </a>
-          <a
-            href={getNetflixActionLink(result.watchLink, "/tv8")}
-            target="_blank"
-            rel="noopener noreferrer"
-            data-testid="link-watch-tv"
-            className="flex items-center justify-center gap-2 rounded-2xl bg-amber-400 px-5 py-3.5 text-sm font-semibold text-black transition-all hover:-translate-y-0.5 hover:bg-amber-300"
-          >
-            <Tv className="h-4 w-4" />
-            Watch on TV
-          </a>
-        </div>
-      )}
+      <div className="grid gap-3">
+        <button
+          type="button"
+          onClick={() => onLaunch("direct", result.watchLink)}
+          disabled={isLaunching}
+          data-testid="button-direct-watch"
+          className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-600 to-red-500 px-5 py-3.5 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-red-950/30 transition-all hover:-translate-y-0.5 hover:from-red-500 hover:to-red-400 disabled:cursor-wait disabled:opacity-70"
+        >
+          <Play className="h-4 w-4" />
+          {isLaunching && launchTarget === "direct" ? "Opening..." : "Watch now"}
+        </button>
+        <button
+          type="button"
+          onClick={() => onLaunch("app", result.watchLink ? getNetflixActionLink(result.watchLink, "/unsupported") : undefined)}
+          disabled={isLaunching}
+          data-testid="button-netflix-app"
+          className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.08] px-5 py-3.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/[0.12] disabled:cursor-wait disabled:opacity-70"
+        >
+          <Smartphone className="h-4 w-4" />
+          {isLaunching && launchTarget === "app" ? "Opening..." : "Watch on Netflix App"}
+        </button>
+        <button
+          type="button"
+          onClick={() => onLaunch("tv", result.watchLink ? getNetflixActionLink(result.watchLink, "/tv8") : undefined)}
+          disabled={isLaunching}
+          data-testid="button-watch-tv"
+          className="flex items-center justify-center gap-2 rounded-2xl bg-amber-400 px-5 py-3.5 text-sm font-semibold text-black transition-all hover:-translate-y-0.5 hover:bg-amber-300 disabled:cursor-wait disabled:opacity-70"
+        >
+          <Tv className="h-4 w-4" />
+          {isLaunching && launchTarget === "tv" ? "Opening..." : "Watch on TV"}
+        </button>
+      </div>
     </div>
   );
 }
@@ -198,6 +204,7 @@ export default function Home({ onLogout }: HomeProps) {
   const [selectedSession, setSelectedSession] = useState<CookieSession | null>(null);
   const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
+  const [launchTarget, setLaunchTarget] = useState<WatchTarget | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -226,6 +233,63 @@ export default function Home({ onLogout }: HomeProps) {
       toast({ title: "Check failed", description: err.message, variant: "destructive" });
     },
   });
+
+  const watchMutation = useMutation({
+    mutationFn: async ({
+      target,
+      fallbackLink,
+      launchWindow,
+    }: {
+      target: WatchTarget;
+      fallbackLink?: string;
+      launchWindow: Window | null;
+    }) => {
+      if (!selectedSession) {
+        throw new Error("Select a session first");
+      }
+
+      try {
+        const res = await apiRequest("POST", "/api/watch", { sessionId: selectedSession.id, target });
+        const data = (await res.json()) as { success: boolean; watchLink?: string; error?: string };
+        if (data.success && data.watchLink) {
+          return { launchWindow, watchLink: data.watchLink };
+        }
+        throw new Error(data.error || "Watch link unavailable");
+      } catch (error) {
+        if (fallbackLink) {
+          return { launchWindow, watchLink: fallbackLink };
+        }
+        throw error;
+      }
+    },
+    onSuccess: ({ launchWindow, watchLink }) => {
+      if (launchWindow && !launchWindow.closed) {
+        launchWindow.location.href = watchLink;
+        return;
+      }
+      window.open(watchLink, "_blank", "noopener,noreferrer");
+    },
+    onError: (err: Error, variables) => {
+      if (variables.launchWindow && !variables.launchWindow.closed) {
+        variables.launchWindow.close();
+      }
+      toast({ title: "Watch link failed", description: err.message, variant: "destructive" });
+    },
+    onSettled: () => {
+      setLaunchTarget(null);
+    },
+  });
+
+  const handleLaunch = (target: WatchTarget, fallbackLink?: string) => {
+    const launchWindow = window.open("about:blank", "_blank");
+    if (launchWindow) {
+      launchWindow.opener = null;
+      launchWindow.document.title = "Opening Netflix";
+      launchWindow.document.body.innerHTML = "<p style='font-family: sans-serif; padding: 24px;'>Opening Netflix...</p>";
+    }
+    setLaunchTarget(target);
+    watchMutation.mutate({ target, fallbackLink, launchWindow });
+  };
 
   const handleSelect = (session: CookieSession) => {
     if (session.is_premium && !isPremium) {
@@ -415,7 +479,13 @@ export default function Home({ onLogout }: HomeProps) {
                     <p className="mt-2 max-w-sm text-sm leading-6 text-neutral-500">Your verification results and account details will appear here.</p>
                   </div>
                 )}
-                <ResultPanel result={checkResult} isChecking={checkMutation.isPending} />
+                <ResultPanel
+                  result={checkResult}
+                  isChecking={checkMutation.isPending}
+                  onLaunch={handleLaunch}
+                  isLaunching={watchMutation.isPending}
+                  launchTarget={launchTarget}
+                />
               </div>
             </div>
           </section>

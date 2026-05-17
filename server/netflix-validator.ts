@@ -7,6 +7,8 @@ interface CookieObj {
   [key: string]: any;
 }
 
+type WatchTarget = "direct" | "app" | "tv";
+
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
 
 function cookiesToHeader(cookies: CookieObj[] | string): string {
@@ -111,6 +113,48 @@ async function fetchWatchLinkFromMakizig(cookieHeader: string, netflixId?: strin
     log(`Makizig watch link fetch failed: ${err.message}`);
     return null;
   }
+}
+
+function getNetflixActionLink(watchLink: string, target: WatchTarget): string {
+  const path = target === "app" ? "/unsupported" : target === "tv" ? "/tv8" : null;
+  if (!path) {
+    return watchLink;
+  }
+
+  try {
+    const url = new URL(watchLink);
+    url.pathname = path;
+    return url.toString();
+  } catch {
+    return watchLink.replace(/netflix\.com\/[^?]*\?/, `netflix.com${path}?`);
+  }
+}
+
+export async function generateNetflixWatchLink(cookies: CookieObj[] | string, target: WatchTarget = "direct"): Promise<string | null> {
+  const cookieHeader = cookiesToHeader(cookies);
+  if (!cookieHeader || cookieHeader.length < 10) {
+    return null;
+  }
+
+  const initialRes = await fetch("https://www.netflix.com/YourAccount", {
+    method: "GET",
+    headers: {
+      "User-Agent": UA,
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.5",
+      "Cookie": cookieHeader,
+    },
+    redirect: "manual",
+  });
+  const setCookieHeaders = (initialRes.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie?.() || [];
+  const { netflixId, secureNetflixId } = extractNetflixCookies(setCookieHeaders);
+
+  let watchLink = await fetchWatchLinkFromMakizig(cookieHeader, netflixId, secureNetflixId);
+  if (!watchLink) {
+    return null;
+  }
+  watchLink = watchLink.replace(/netflix\.com\/account\?/, "netflix.com/browse?");
+  return getNetflixActionLink(watchLink, target);
 }
 
 function regexExtract(html: string, pattern: RegExp): string | null {

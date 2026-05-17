@@ -130,6 +130,13 @@ const checkRequestSchema = z.object({
   sessionId: z.number({ required_error: "sessionId is required" }),
 });
 
+const watchRequestSchema = z.object({
+  sessionId: z.number({ required_error: "sessionId is required" }),
+  target: z.enum(["direct", "app", "tv"]).default("direct"),
+});
+
+type WatchTarget = z.infer<typeof watchRequestSchema>["target"];
+
 // --------------------
 // Auth / rate-limit
 // --------------------
@@ -376,6 +383,48 @@ async function fetchWatchLinkFromMakizig(
     log(`Makizig watch link fetch failed: ${err.message}`);
     return null;
   }
+}
+
+function getNetflixActionLink(watchLink: string, target: WatchTarget): string {
+  const path = target === "app" ? "/unsupported" : target === "tv" ? "/tv8" : null;
+  if (!path) {
+    return watchLink;
+  }
+
+  try {
+    const url = new URL(watchLink);
+    url.pathname = path;
+    return url.toString();
+  } catch {
+    return watchLink.replace(/netflix\.com\/[^?]*\?/, `netflix.com${path}?`);
+  }
+}
+
+async function generateNetflixWatchLink(cookies: CookieObj[] | string, target: WatchTarget): Promise<string | null> {
+  const cookieHeader = cookiesToHeader(cookies);
+  if (!cookieHeader || cookieHeader.length < 10) {
+    return null;
+  }
+
+  const initialRes = await fetch("https://www.netflix.com/YourAccount", {
+    method: "GET",
+    headers: {
+      "User-Agent": UA,
+      Accept: "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.5",
+      Cookie: cookieHeader,
+    },
+    redirect: "manual",
+  });
+  const setCookieHeaders = (initialRes.headers as Headers & { getSetCookie?: () => string[] }).getSetCookie?.() || [];
+  const { netflixId, secureNetflixId } = extractNetflixCookies(setCookieHeaders);
+
+  let watchLink = await fetchWatchLinkFromMakizig(cookieHeader, netflixId, secureNetflixId);
+  if (!watchLink) {
+    return null;
+  }
+  watchLink = watchLink.replace(/netflix\.com\/account\?/, "netflix.com/browse?");
+  return getNetflixActionLink(watchLink, target);
 }
 
 function regexExtract(html: string, pattern: RegExp): string | null {
@@ -859,6 +908,55 @@ app.post("/api/check", verifyAuth, async (req: Request, res: Response) => {
   } catch (err: any) {
     log(`Check error: ${err.message}`);
     res.status(500).json({ valid: false, error: "Failed to check cookie" });
+  }
+});
+
+app.post("/api/watch", verifyAuth, async (req: Request, res: Response) => {
+  try {
+    const userIsPremium = (req as any).userIsPremium === true;
+    const parsed = watchRequestSchema.safeParse(req.body);
+    if (!parsed.success) {
+      return res.status(400).json({ success: false, error: "sessionId is required" });
+    }
+
+    const { sessionId, target } = parsed.data;
+    let sessionRes = await supabaseRequest(`cookie_sessions?id=eq.${sessionId}&select=id,cookies,is_premium`);
+
+    if (!sessionRes.ok) {
+      const errText = await sessionRes.text();
+      if (errText.includes("is_premium") && errText.includes("does not exist")) {
+        sessionRes = await supabaseRequest(`cookie_sessions?id=eq.${sessionId}&select=id,cookies`);
+        if (!sessionRes.ok) {
+          return res.status(500).json({ success: false, error: "Failed to fetch session" });
+        }
+      } else {
+        return res.status(500).json({ success: false, error: "Failed to fetch session" });
+      }
+    }
+
+    const rows = await sessionRes.json();
+    if (!rows.length) {
+      return res.status(404).json({ success: false, error: "Session not found" });
+    }
+
+    const session = rows[0];
+    if (session.is_premium === true && !userIsPremium) {
+      log(`Free user attempted to launch premium cookie session ${sessionId}`);
+      return res.status(403).json({
+        success: false,
+        error: "Premium cookie — upgrade your activation key to access this session",
+      });
+    }
+
+    const watchLink = await generateNetflixWatchLink(session.cookies, target);
+    if (!watchLink) {
+      return res.status(502).json({ success: false, error: "Watch link unavailable" });
+    }
+
+    res.json({ success: true, watchLink });
+  } catch (err: any) {
+    log(`Watch launch error: ${err.message}`);
+    res.status(500).json({ success: false, error: "Failed to launch watch link" });
   }
 });
 
