@@ -5,20 +5,26 @@ import type { CookieSession, CheckResult } from "@shared/schema";
 import { useToast } from "@/hooks/use-toast";
 import logoImg from "@assets/icon-128_1771330377572.png";
 import {
-  Play,
+  Activity,
   CheckCircle2,
-  XCircle,
-  Loader2,
-  Tv,
-  Mail,
-  Globe,
-  CreditCard,
-  Users,
-  Shield,
   ChevronDown,
-  LogOut,
-  Lock,
+  CreditCard,
   Crown,
+  Globe,
+  Loader2,
+  Lock,
+  LogOut,
+  Mail,
+  Play,
+  SearchCheck,
+  Server,
+  Shield,
+  Smartphone,
+  Sparkles,
+  Tv,
+  Users,
+  XCircle,
+  type LucideIcon,
 } from "lucide-react";
 
 function InfoRow({
@@ -27,25 +33,30 @@ function InfoRow({
   value,
   highlight,
 }: {
-  icon: typeof Mail;
+  icon: LucideIcon;
   label: string;
   value?: string;
   highlight?: boolean;
 }) {
   if (!value) return null;
   return (
-    <div className="flex items-start gap-3 py-3 border-b border-white/5 last:border-0">
-      <Icon className="w-4 h-4 text-neutral-500 mt-0.5 shrink-0" />
-      <span className="text-xs sm:text-sm text-neutral-400 w-24 sm:w-28 shrink-0">{label}</span>
-      <span
-        className={`text-xs sm:text-sm font-medium flex-1 break-all ${
-          highlight ? "text-emerald-400" : "text-white"
-        }`}
-      >
+    <div className="flex items-start gap-3 px-1 py-3.5 sm:px-2">
+      <Icon className="mt-0.5 h-4 w-4 shrink-0 text-neutral-500" />
+      <span className="w-28 shrink-0 text-sm text-neutral-400 sm:w-32">{label}</span>
+      <span className={`min-w-0 flex-1 break-words text-sm font-semibold ${highlight ? "text-emerald-300" : "text-white"}`}>
         {value}
       </span>
     </div>
   );
+}
+
+function buildNetflixLink(watchLink: string, targetPath: string): string {
+  const match = watchLink.match(/nftoken=([^&\s]+)/);
+  if (match) {
+    const token = match[1];
+    return `https://netflix.com/?nftoken=${token}&nextPage=${encodeURIComponent(`/${targetPath}`)}`;
+  }
+  return watchLink.replace(/^(https:\/\/netflix\.com\/)[^?]*/, `$1${targetPath}`);
 }
 
 function ResultPanel({
@@ -57,12 +68,16 @@ function ResultPanel({
 }) {
   if (isChecking) {
     return (
-      <div className="flex flex-col items-center justify-center py-16 sm:py-20 gap-4">
+      <div className="flex flex-col items-center justify-center gap-5 py-16 sm:py-20">
         <div className="relative">
-          <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full border-[3px] border-neutral-800" />
-          <div className="absolute inset-0 w-12 h-12 sm:w-14 sm:h-14 rounded-full border-[3px] border-red-600 border-t-transparent animate-spin" />
+          <div className="h-16 w-16 rounded-full border border-white/10 bg-white/[0.04]" />
+          <div className="absolute inset-0 rounded-full border-[3px] border-red-500 border-t-transparent animate-spin" />
+          <SearchCheck className="absolute inset-0 m-auto h-6 w-6 text-red-300" />
         </div>
-        <p className="text-sm font-medium text-neutral-400">Verifying account...</p>
+        <div className="text-center">
+          <p className="text-sm font-semibold text-white">Verifying account</p>
+          <p className="mt-1 text-xs text-neutral-500">Checking session health and membership details...</p>
+        </div>
       </div>
     );
   }
@@ -71,31 +86,42 @@ function ResultPanel({
 
   if (!result.valid) {
     return (
-      <div className="flex flex-col items-center justify-center py-12 sm:py-16 gap-3">
-        <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-full bg-red-500/10 flex items-center justify-center">
-          <XCircle className="w-6 h-6 sm:w-7 sm:h-7 text-red-500" />
+      <div className="flex flex-col items-center justify-center gap-4 py-14 sm:py-16">
+        <div className="flex h-16 w-16 items-center justify-center rounded-2xl border border-red-500/20 bg-red-500/10 shadow-lg shadow-red-950/30">
+          <XCircle className="h-8 w-8 text-red-300" />
         </div>
-        <p className="text-sm sm:text-base font-semibold text-white">Invalid / Expired</p>
-        {result.error && (
-          <p className="text-xs text-neutral-500 max-w-xs text-center">{result.error}</p>
-        )}
+        <div className="text-center">
+          <p className="text-base font-semibold text-white">Invalid or expired session</p>
+          {result.error && (
+            <p className="mx-auto mt-2 max-w-xs text-sm leading-6 text-neutral-500">{result.error}</p>
+          )}
+        </div>
       </div>
     );
   }
 
+  const directWatchLink = result.watchLink ? buildNetflixLink(result.watchLink, "browse") : undefined;
+  const appWatchLink = result.watchLink ? buildNetflixLink(result.watchLink, "unsupported") : undefined;
+  const tvWatchLink = result.watchLink ? buildNetflixLink(result.watchLink, "tv8") : undefined;
+
   return (
-    <div className="space-y-4">
-      <div className="flex items-center gap-2 pb-3 border-b border-white/10">
-        <div className="w-2 h-2 rounded-full bg-emerald-500 animate-pulse" />
-        <span className="text-xs sm:text-sm font-bold text-emerald-400 tracking-wide uppercase">Valid Account</span>
+    <div className="space-y-5">
+      <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-emerald-400/15 bg-emerald-400/10 px-4 py-3">
+        <div className="flex h-9 w-9 items-center justify-center rounded-xl bg-emerald-400/15">
+          <CheckCircle2 className="h-5 w-5 text-emerald-300" />
+        </div>
+        <div>
+          <p className="text-sm font-semibold text-emerald-200">Valid account</p>
+          <p className="text-xs text-emerald-100/60">Session passed all available checks.</p>
+        </div>
         {result.plan && (
-          <span className="ml-auto text-[10px] sm:text-xs px-2 py-0.5 rounded-full bg-red-600/20 text-red-400 border border-red-600/30 font-medium">
+          <span className="ml-auto rounded-full border border-red-400/20 bg-red-500/10 px-3 py-1 text-xs font-semibold text-red-200">
             {result.plan}
           </span>
         )}
       </div>
 
-      <div>
+      <div className="divide-y divide-white/10 rounded-2xl border border-white/10 bg-[#0b0f16]/70 px-4 py-1">
         <InfoRow icon={Shield} label="Status" value={result.status} highlight />
         <InfoRow icon={CreditCard} label="Premium" value={result.premium} />
         <InfoRow icon={Globe} label="Country" value={result.country} />
@@ -112,31 +138,58 @@ function ResultPanel({
         <InfoRow icon={CreditCard} label="Billing" value={result.billing} />
       </div>
 
-      {result.watchLink && (
-        <div className="flex flex-col gap-2">
+      {directWatchLink && (
+        <div className="grid gap-3">
           <a
-            href={result.watchLink}
+            href={directWatchLink}
             target="_blank"
             rel="noopener noreferrer"
-            data-testid="link-direct-watch"
-            className="flex items-center justify-center gap-2 w-full py-3 rounded-lg bg-red-600 hover:bg-red-700 active:bg-red-800 text-white font-semibold text-sm transition-colors"
+            data-testid="button-direct-watch"
+            className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-600 to-red-500 px-5 py-3.5 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-red-950/30 transition-all hover:-translate-y-0.5 hover:from-red-500 hover:to-red-400"
           >
-            <Play className="w-4 h-4" />
-            WATCH NOW
+            <Play className="h-4 w-4" />
+            Watch now
           </a>
           <a
-            href={result.watchLink.replace(/netflix\.com\/browse\?/, "netflix.com/unsupported?")}
+            href={appWatchLink}
             target="_blank"
             rel="noopener noreferrer"
-            data-testid="link-netflix-app"
-            className="flex items-center justify-center gap-2 w-full py-3 rounded-lg bg-neutral-800 hover:bg-neutral-700 active:bg-neutral-600 text-white font-semibold text-sm transition-colors border border-white/10"
+            data-testid="button-netflix-app"
+            className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.08] px-5 py-3.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/[0.12]"
           >
-            <Tv className="w-4 h-4" />
+            <Smartphone className="h-4 w-4" />
             Watch on Netflix App
+          </a>
+          <a
+            href={tvWatchLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="button-watch-tv"
+            className="flex items-center justify-center gap-2 rounded-2xl bg-amber-400 px-5 py-3.5 text-sm font-semibold text-black transition-all hover:-translate-y-0.5 hover:bg-amber-300"
+          >
+            <Tv className="h-4 w-4" />
+            Watch on TV
           </a>
         </div>
       )}
     </div>
+  );
+}
+
+function TierBadge({ isPremium }: { isPremium: boolean }) {
+  if (isPremium) {
+    return (
+      <span className="flex items-center gap-1.5 rounded-full border border-amber-400/20 bg-amber-400/10 px-3 py-1" data-testid="badge-tier">
+        <Crown className="h-3.5 w-3.5 text-amber-300" />
+        <span className="text-[11px] font-semibold uppercase tracking-[0.14em] text-amber-200">Premium</span>
+      </span>
+    );
+  }
+
+  return (
+    <span className="rounded-full border border-white/10 bg-white/[0.04] px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.14em] text-neutral-400" data-testid="badge-tier">
+      Free
+    </span>
   );
 }
 
@@ -157,6 +210,9 @@ export default function Home({ onLogout }: HomeProps) {
 
   const sessions = cookieData?.sessions ?? [];
   const isPremium = cookieData?.userIsPremium === true;
+  const premiumSessions = sessions.filter((session) => session.is_premium).length;
+  const availableSessions = sessions.filter((session) => !session.is_premium || isPremium).length;
+  const selectedSessionLabel = selectedSession?.description || (selectedSession ? `Cookie #${selectedSession.id}` : "No session selected");
 
   const checkMutation = useMutation({
     mutationFn: async (sessionId: number) => {
@@ -195,132 +251,185 @@ export default function Home({ onLogout }: HomeProps) {
     return () => document.removeEventListener("mousedown", handleClickOutside);
   }, []);
 
+  const stats = [
+    { label: "Total sessions", value: isLoading ? "—" : sessions.length.toString(), icon: Server },
+    { label: "Available", value: isLoading ? "—" : availableSessions.toString(), icon: Activity },
+    { label: "Premium pool", value: isLoading ? "—" : premiumSessions.toString(), icon: Crown },
+  ];
+
   return (
-    <div className="min-h-screen bg-[#0a0a0a] text-white flex flex-col">
-      <header className="border-b border-white/5 bg-[#0f0f0f]/90 backdrop-blur-md sticky top-0 z-20">
-        <div className="max-w-2xl mx-auto px-4 py-3 flex items-center justify-between">
-          <div className="flex items-center gap-2.5">
-            <img src={logoImg} alt="Premium Netflix" className="w-7 h-7 sm:w-8 sm:h-8 rounded" data-testid="img-logo" />
-            <h1 className="text-base sm:text-lg font-bold tracking-tight" data-testid="text-title">Premium Netflix</h1>
-            {isPremium ? (
-              <span className="flex items-center gap-1 px-2 py-0.5 rounded-full bg-amber-500/10 border border-amber-500/20" data-testid="badge-tier">
-                <Crown className="w-3 h-3 text-amber-400" />
-                <span className="text-[10px] font-semibold text-amber-400 uppercase">Premium</span>
-              </span>
-            ) : (
-              <span className="px-2 py-0.5 rounded-full bg-neutral-800 border border-neutral-700 text-[10px] font-medium text-neutral-500 uppercase" data-testid="badge-tier">
-                Free
-              </span>
-            )}
+    <div className="relative min-h-screen overflow-hidden bg-[#07090f] text-white">
+      <div className="pointer-events-none fixed inset-0">
+        <div className="absolute left-[-12rem] top-[-12rem] h-[32rem] w-[32rem] rounded-full bg-red-600/20 blur-[130px]" />
+        <div className="absolute bottom-[-10rem] right-[-8rem] h-[28rem] w-[28rem] rounded-full bg-sky-500/10 blur-[120px]" />
+        <div className="absolute inset-0 bg-[linear-gradient(rgba(255,255,255,.03)_1px,transparent_1px),linear-gradient(90deg,rgba(255,255,255,.03)_1px,transparent_1px)] bg-[size:84px_84px] [mask-image:linear-gradient(to_bottom,black,transparent_90%)]" />
+      </div>
+
+      <header className="sticky top-0 z-20 border-b border-white/10 bg-[#07090f]/75 backdrop-blur-2xl">
+        <div className="mx-auto flex max-w-7xl items-center justify-between px-4 py-4 sm:px-6 lg:px-8">
+          <div className="flex min-w-0 items-center gap-3">
+            <div className="relative shrink-0">
+              <div className="absolute inset-0 rounded-xl bg-red-500/25 blur-md" />
+              <img src={logoImg} alt="Premium Netflix" className="relative h-10 w-10 rounded-xl ring-1 ring-white/10" data-testid="img-logo" />
+            </div>
+            <div className="min-w-0">
+              <h1 className="truncate text-base font-semibold tracking-tight sm:text-lg" data-testid="text-title">Premium Netflix</h1>
+              <p className="hidden text-xs text-neutral-500 sm:block">Professional session verification console</p>
+            </div>
+            <TierBadge isPremium={isPremium} />
           </div>
           <button
             onClick={onLogout}
             data-testid="button-logout"
-            className="flex items-center gap-1.5 px-3 py-1.5 rounded-md text-xs text-neutral-400 hover:text-white hover:bg-white/5 transition-colors"
+            className="flex items-center gap-2 rounded-full border border-white/10 bg-white/[0.045] px-3 py-2 text-xs font-medium text-neutral-300 transition-all hover:border-white/20 hover:bg-white/[0.075] hover:text-white"
           >
-            <LogOut className="w-3.5 h-3.5" />
+            <LogOut className="h-3.5 w-3.5" />
             <span className="hidden sm:inline">Logout</span>
           </button>
         </div>
       </header>
 
-      <main className="flex-1 max-w-2xl mx-auto w-full px-4 py-5 sm:py-8">
-        <div className="space-y-5">
-          <div ref={dropdownRef} className="relative" data-testid="dropdown-container">
-            <button
-              onClick={() => setDropdownOpen((o) => !o)}
-              disabled={isLoading}
-              data-testid="button-dropdown"
-              className="w-full flex items-center justify-between gap-2 px-3.5 sm:px-4 py-3 rounded-xl border border-white/10 bg-[#141414] hover:bg-[#1a1a1a] transition-colors text-left"
-            >
-              <div className="flex items-center gap-2.5 min-w-0">
-                {isLoading ? (
-                  <Loader2 className="w-4 h-4 text-neutral-500 animate-spin shrink-0" />
-                ) : selectedSession ? (
-                  <CheckCircle2 className="w-4 h-4 text-red-500 shrink-0" />
-                ) : (
-                  <div className="w-4 h-4 rounded-full border-2 border-neutral-600 shrink-0" />
-                )}
-                <span className={`text-sm truncate ${selectedSession ? "text-white font-medium" : "text-neutral-500"}`}>
-                  {isLoading
-                    ? "Loading sessions..."
-                    : selectedSession
-                      ? (selectedSession.description || `Cookie #${selectedSession.id}`)
-                      : "Select a cookie session"}
-                </span>
+      <main className="relative mx-auto w-full max-w-7xl px-4 py-6 sm:px-6 sm:py-8 lg:px-8">
+        <div className="grid gap-6 lg:grid-cols-[22rem_minmax(0,1fr)]">
+          <aside className="space-y-4 lg:sticky lg:top-24 lg:self-start">
+            <section className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.06] p-5 shadow-2xl shadow-black/30 backdrop-blur-2xl">
+              <div className="flex items-center gap-2 rounded-full border border-red-400/15 bg-red-500/10 px-3 py-1 text-[11px] font-semibold uppercase tracking-[0.18em] text-red-200">
+                <Sparkles className="h-3.5 w-3.5" />
+                Verification hub
               </div>
-              <div className="flex items-center gap-2 shrink-0">
-                {!isLoading && sessions.length > 0 && (
-                  <span className="text-[10px] sm:text-xs text-neutral-600 tabular-nums">{sessions.length}</span>
-                )}
-                <ChevronDown className={`w-4 h-4 text-neutral-500 transition-transform duration-200 ${dropdownOpen ? "rotate-180" : ""}`} />
-              </div>
-            </button>
+              <h2 className="mt-5 text-2xl font-semibold tracking-tight">Select, verify, and launch with confidence.</h2>
+              <p className="mt-3 text-sm leading-6 text-neutral-400">
+                Choose an available cookie session to run a live account status check and view key membership details.
+              </p>
+            </section>
 
-            {dropdownOpen && (
-              <div className="absolute z-30 mt-1.5 w-full rounded-xl border border-white/10 bg-[#141414] shadow-2xl shadow-black/60 overflow-hidden animate-in fade-in slide-in-from-top-1 duration-150">
-                <div className="max-h-60 sm:max-h-80 overflow-y-auto overscroll-contain">
-                  {sessions.map((session) => {
-                    const locked = session.is_premium && !isPremium;
-                    return (
-                      <button
-                        key={session.id}
-                        data-testid={`cookie-item-${session.id}`}
-                        onClick={() => handleSelect(session)}
-                        className={`w-full text-left px-3.5 sm:px-4 py-2.5 flex items-center gap-2.5 transition-colors text-sm ${
-                          locked
-                            ? "text-neutral-600 cursor-not-allowed"
-                            : selectedSession?.id === session.id
-                              ? "bg-red-600/10 text-red-400"
-                              : "text-neutral-300 hover:bg-white/5 active:bg-white/10"
-                        }`}
-                      >
-                        <span className="w-5 sm:w-6 text-right text-[10px] sm:text-xs font-mono text-neutral-600 shrink-0">{session.id}</span>
-                        <span className={`truncate flex-1 text-xs sm:text-sm ${locked ? "text-neutral-600" : ""}`}>
-                          {session.description || `Cookie #${session.id}`}
-                        </span>
-                        {session.is_premium ? (
-                          locked ? (
-                            <span className="flex items-center gap-1 shrink-0">
-                              <Lock className="w-3 h-3 text-amber-600" />
-                              <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-500 border border-amber-500/20 font-semibold uppercase">Premium</span>
-                            </span>
-                          ) : (
-                            <span className="flex items-center gap-1 shrink-0">
-                              <Crown className="w-3 h-3 text-amber-400" />
-                              <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded bg-amber-500/10 text-amber-400 border border-amber-500/20 font-semibold uppercase">Premium</span>
-                            </span>
-                          )
-                        ) : (
-                          <span className="text-[9px] sm:text-[10px] px-1.5 py-0.5 rounded bg-neutral-800 text-neutral-500 border border-neutral-700 font-medium uppercase shrink-0">Free</span>
-                        )}
-                        {selectedSession?.id === session.id && !locked && (
-                          <CheckCircle2 className="w-3.5 h-3.5 text-red-500 shrink-0" />
-                        )}
-                      </button>
-                    );
-                  })}
+            <section className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+              {stats.map((stat) => (
+                <div key={stat.label} className="rounded-2xl border border-white/10 bg-white/[0.05] p-4 backdrop-blur-xl">
+                  <div className="flex items-center justify-between gap-3">
+                    <div>
+                      <p className="text-xs font-medium uppercase tracking-[0.16em] text-neutral-500">{stat.label}</p>
+                      <p className="mt-2 text-2xl font-semibold text-white">{stat.value}</p>
+                    </div>
+                    <div className="rounded-2xl border border-white/10 bg-white/[0.05] p-3">
+                      <stat.icon className="h-5 w-5 text-red-300" />
+                    </div>
+                  </div>
                 </div>
-              </div>
-            )}
-          </div>
+              ))}
+            </section>
+          </aside>
 
-          <div className="rounded-xl border border-white/5 bg-[#111111]" data-testid="result-panel">
-            <div className="p-4 sm:p-6">
-              {!selectedSession && !checkMutation.isPending && (
-                <div className="flex flex-col items-center justify-center py-12 sm:py-16 text-neutral-600">
-                  <Tv className="w-9 h-9 sm:w-10 sm:h-10 mb-3 opacity-40" />
-                  <p className="text-xs sm:text-sm">Select a session to check</p>
+          <section className="space-y-5">
+            <div ref={dropdownRef} className="relative" data-testid="dropdown-container">
+              <button
+                onClick={() => setDropdownOpen((o) => !o)}
+                disabled={isLoading}
+                data-testid="button-dropdown"
+                className="group flex w-full items-center justify-between gap-4 rounded-[1.5rem] border border-white/10 bg-white/[0.06] px-4 py-4 text-left shadow-2xl shadow-black/20 backdrop-blur-2xl transition-all hover:border-white/20 hover:bg-white/[0.08] disabled:cursor-wait disabled:opacity-70 sm:px-5"
+              >
+                <div className="flex min-w-0 items-center gap-3">
+                  <div className="flex h-11 w-11 shrink-0 items-center justify-center rounded-2xl border border-white/10 bg-[#111827]">
+                    {isLoading ? (
+                      <Loader2 className="h-5 w-5 animate-spin text-neutral-400" />
+                    ) : selectedSession ? (
+                      <CheckCircle2 className="h-5 w-5 text-emerald-300" />
+                    ) : (
+                      <SearchCheck className="h-5 w-5 text-neutral-500" />
+                    )}
+                  </div>
+                  <div className="min-w-0">
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Cookie session</p>
+                    <p className={`mt-1 truncate text-sm sm:text-base ${selectedSession ? "font-semibold text-white" : "text-neutral-400"}`}>
+                      {isLoading ? "Loading sessions..." : selectedSessionLabel}
+                    </p>
+                  </div>
+                </div>
+                <div className="flex shrink-0 items-center gap-3">
+                  {!isLoading && sessions.length > 0 && (
+                    <span className="hidden rounded-full border border-white/10 bg-white/[0.05] px-2.5 py-1 text-xs font-medium text-neutral-400 sm:inline-flex">{sessions.length} sessions</span>
+                  )}
+                  <ChevronDown className={`h-5 w-5 text-neutral-500 transition-transform duration-200 group-hover:text-neutral-300 ${dropdownOpen ? "rotate-180" : ""}`} />
+                </div>
+              </button>
+
+              {dropdownOpen && (
+                <div className="absolute z-30 mt-2 w-full overflow-hidden rounded-[1.35rem] border border-white/10 bg-[#0d1118]/95 shadow-2xl shadow-black/70 backdrop-blur-2xl animate-in fade-in slide-in-from-top-1 duration-150">
+                  <div className="max-h-72 overflow-y-auto overscroll-contain p-2 sm:max-h-96">
+                    {sessions.length === 0 ? (
+                      <div className="px-4 py-8 text-center text-sm text-neutral-500">No sessions are available yet.</div>
+                    ) : (
+                      sessions.map((session) => {
+                        const locked = session.is_premium && !isPremium;
+                        return (
+                          <button
+                            key={session.id}
+                            data-testid={`cookie-item-${session.id}`}
+                            onClick={() => handleSelect(session)}
+                            className={`flex w-full items-center gap-3 rounded-2xl px-3 py-3 text-left text-sm transition-all ${
+                              locked
+                                ? "cursor-not-allowed text-neutral-600"
+                                : selectedSession?.id === session.id
+                                  ? "bg-red-500/10 text-red-200 ring-1 ring-red-400/20"
+                                  : "text-neutral-300 hover:bg-white/[0.06] hover:text-white"
+                            }`}
+                          >
+                            <span className="flex h-8 w-10 shrink-0 items-center justify-center rounded-xl border border-white/10 bg-white/[0.04] font-mono text-xs text-neutral-500">{session.id}</span>
+                            <span className={`min-w-0 flex-1 truncate ${locked ? "text-neutral-600" : ""}`}>
+                              {session.description || `Cookie #${session.id}`}
+                            </span>
+                            {session.is_premium ? (
+                              <span className={`flex shrink-0 items-center gap-1 rounded-full border px-2 py-1 text-[10px] font-semibold uppercase ${locked ? "border-amber-600/20 bg-amber-600/10 text-amber-600" : "border-amber-400/20 bg-amber-400/10 text-amber-200"}`}>
+                                {locked ? <Lock className="h-3 w-3" /> : <Crown className="h-3 w-3" />}
+                                Premium
+                              </span>
+                            ) : (
+                              <span className="shrink-0 rounded-full border border-white/10 bg-white/[0.04] px-2 py-1 text-[10px] font-semibold uppercase text-neutral-500">Free</span>
+                            )}
+                            {selectedSession?.id === session.id && !locked && (
+                              <CheckCircle2 className="h-4 w-4 shrink-0 text-emerald-300" />
+                            )}
+                          </button>
+                        );
+                      })
+                    )}
+                  </div>
                 </div>
               )}
-              <ResultPanel result={checkResult} isChecking={checkMutation.isPending} />
             </div>
-          </div>
+
+            <div className="overflow-hidden rounded-[1.75rem] border border-white/10 bg-white/[0.06] shadow-2xl shadow-black/25 backdrop-blur-2xl" data-testid="result-panel">
+              <div className="border-b border-white/10 px-5 py-4 sm:px-6">
+                <div className="flex flex-wrap items-center justify-between gap-3">
+                  <div>
+                    <p className="text-xs font-semibold uppercase tracking-[0.18em] text-neutral-500">Session result</p>
+                    <h2 className="mt-1 text-xl font-semibold tracking-tight text-white">Account verification</h2>
+                  </div>
+                  <span className="rounded-full border border-white/10 bg-white/[0.045] px-3 py-1 text-xs font-medium text-neutral-400">
+                    {checkMutation.isPending ? "Running check" : checkResult ? "Result ready" : "Awaiting selection"}
+                  </span>
+                </div>
+              </div>
+              <div className="p-4 sm:p-6">
+                {!selectedSession && !checkMutation.isPending && (
+                  <div className="flex flex-col items-center justify-center rounded-[1.35rem] border border-dashed border-white/10 bg-white/[0.025] px-6 py-14 text-center text-neutral-500 sm:py-16">
+                    <Tv className="mb-4 h-12 w-12 opacity-40" />
+                    <p className="text-sm font-medium text-neutral-300">Select a session to begin</p>
+                    <p className="mt-2 max-w-sm text-sm leading-6 text-neutral-500">Your verification results and account details will appear here.</p>
+                  </div>
+                )}
+                <ResultPanel
+                  result={checkResult}
+                  isChecking={checkMutation.isPending}
+                />
+              </div>
+            </div>
+          </section>
         </div>
       </main>
 
-      <footer className="border-t border-white/5 py-3 sm:py-4 mt-auto">
-        <p className="text-center text-[10px] sm:text-xs text-neutral-700">Premium Netflix Checker</p>
+      <footer className="relative border-t border-white/10 py-5">
+        <p className="text-center text-xs text-neutral-600">Premium Netflix Checker</p>
       </footer>
     </div>
   );

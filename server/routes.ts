@@ -3,7 +3,7 @@ import { type Server } from "http";
 import { log } from "./logger";
 import { z } from "zod";
 import { cookieSessionSchema, loginRequestSchema } from "../shared/schema";
-import { validateNetflixCookies } from "./netflix-validator";
+import { generateNetflixWatchLink, validateNetflixCookies } from "./netflix-validator";
 import { validateNetflixViaPlaywright } from "./playwright-netflix";
 
 const USE_PLAYWRIGHT = false;
@@ -18,6 +18,11 @@ if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
 const checkRequestSchema = z.object({
   cookies: z.any().optional(),
   sessionId: z.number({ required_error: "sessionId is required" }),
+});
+
+const watchRequestSchema = z.object({
+  sessionId: z.number({ required_error: "sessionId is required" }),
+  target: z.enum(["direct", "app", "tv"]).default("direct"),
 });
 
 const MAX_LOGIN_ATTEMPTS = 5;
@@ -352,6 +357,59 @@ export async function registerRoutes(
     } catch (err: any) {
       log(`Check error: ${err.message}`);
       res.status(500).json({ valid: false, error: "Failed to check cookie" });
+    }
+  });
+
+  app.post("/api/watch", verifyAuth, async (req: Request, res: Response) => {
+    try {
+      const userIsPremium = (req as any).userIsPremium === true;
+      const parsed = watchRequestSchema.safeParse(req.body);
+      if (!parsed.success) {
+        return res.status(400).json({ success: false, error: "sessionId is required" });
+      }
+
+      const { sessionId, target } = parsed.data;
+      let sessionRes = await supabaseRequest(
+        `cookie_sessions?id=eq.${sessionId}&select=id,cookies,is_premium`
+      );
+
+      if (!sessionRes.ok) {
+        const errText = await sessionRes.text();
+        if (errText.includes("is_premium") && errText.includes("does not exist")) {
+          sessionRes = await supabaseRequest(
+            `cookie_sessions?id=eq.${sessionId}&select=id,cookies`
+          );
+          if (!sessionRes.ok) {
+            return res.status(500).json({ success: false, error: "Failed to fetch session" });
+          }
+        } else {
+          return res.status(500).json({ success: false, error: "Failed to fetch session" });
+        }
+      }
+
+      const rows = await sessionRes.json();
+      if (!rows.length) {
+        return res.status(404).json({ success: false, error: "Session not found" });
+      }
+
+      const session = rows[0];
+      if (session.is_premium === true && !userIsPremium) {
+        log(`Free user attempted to launch premium cookie session ${sessionId}`);
+        return res.status(403).json({
+          success: false,
+          error: "Premium cookie — upgrade your activation key to access this session",
+        });
+      }
+
+      const watchLink = await generateNetflixWatchLink(session.cookies, target);
+      if (!watchLink) {
+        return res.status(502).json({ success: false, error: "Watch link unavailable" });
+      }
+
+      res.json({ success: true, watchLink });
+    } catch (err: any) {
+      log(`Watch launch error: ${err.message}`);
+      res.status(500).json({ success: false, error: "Failed to launch watch link" });
     }
   });
 

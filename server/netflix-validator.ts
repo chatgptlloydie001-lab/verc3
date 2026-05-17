@@ -7,7 +7,14 @@ interface CookieObj {
   [key: string]: any;
 }
 
+type WatchTarget = "direct" | "app" | "tv";
+
 const UA = "Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/120.0.0.0 Safari/537.36";
+const GRAPHQL_UA = "com.netflix.mediaclient/63884 (Linux; U; Android 13; ro; M2007J3SG; Build/TQ1A.230205.001.A2; Cronet/143.0.7445.0)";
+const GRAPHQL_URL = "https://android13.prod.ftl.netflix.com/graphql";
+const GRAPHQL_REQUIRED_COOKIES = ["securenetflixid", "gsid"];
+
+type FetchResponse = Awaited<ReturnType<typeof fetch>>;
 
 function cookiesToHeader(cookies: CookieObj[] | string): string {
   if (typeof cookies === "string") {
@@ -29,6 +36,138 @@ function cookiesToHeader(cookies: CookieObj[] | string): string {
       .join("; ");
   }
   return String(cookies);
+}
+
+function isMinimalCookieSet(cookies: CookieObj[] | string): boolean {
+  if (Array.isArray(cookies)) {
+    return cookies.length <= 2;
+  }
+  if (typeof cookies === "string") {
+    try {
+      const parsed: unknown = JSON.parse(cookies);
+      if (Array.isArray(parsed)) {
+        return parsed.length <= 2;
+      }
+    } catch {}
+    return (cookies.match(/;/g) || []).length <= 1;
+  }
+  return false;
+}
+
+function hasMissingGraphQLCookies(cookieHeader: string): boolean {
+  const lower = cookieHeader.toLowerCase();
+  return GRAPHQL_REQUIRED_COOKIES.some((name) => !lower.includes(`${name}=`));
+}
+
+function parseSetCookiesIntoMap(res: FetchResponse, cookieMap: Record<string, string>): void {
+  const headers = res.headers as Headers & { getSetCookie?: () => string[] };
+  let setCookies: string[] = [];
+  if (typeof headers.getSetCookie === "function") {
+    setCookies = headers.getSetCookie();
+  } else {
+    const raw = res.headers.get("set-cookie");
+    if (raw) {
+      setCookies = [raw];
+    }
+  }
+
+  for (const sc of setCookies) {
+    const cookiePart = sc.split(";")[0].trim();
+    const eqIdx = cookiePart.indexOf("=");
+    if (eqIdx > 0) {
+      const name = cookiePart.substring(0, eqIdx).trim();
+      const value = cookiePart.substring(eqIdx + 1);
+      const lower = sc.toLowerCase();
+      if (name && !lower.includes("max-age=0") && !lower.includes("expires=thu, 01 jan 1970")) {
+        cookieMap[name] = value;
+      }
+    }
+  }
+}
+
+async function followHop(
+  url: string,
+  cookieMap: Record<string, string>,
+  extraHeaders: Record<string, string> = {},
+): Promise<{ status: number; location: string | null }> {
+  const cookieStr = Object.entries(cookieMap).map(([k, v]) => `${k}=${v}`).join("; ");
+  const res = await fetch(url, {
+    method: "GET",
+    headers: {
+      "User-Agent": UA,
+      "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
+      "Accept-Language": "en-US,en;q=0.9",
+      "Cookie": cookieStr,
+      "Sec-Fetch-Dest": "document",
+      "Sec-Fetch-Mode": "navigate",
+      "Sec-Fetch-Site": "none",
+      "Cache-Control": "no-cache",
+      ...extraHeaders,
+    },
+    redirect: "manual",
+    signal: AbortSignal.timeout(15000),
+  });
+  parseSetCookiesIntoMap(res, cookieMap);
+  return { status: res.status, location: res.headers.get("location") };
+}
+
+async function enrichCookiesViaHTTP(cookieHeader: string): Promise<string> {
+  try {
+    const cookieMap: Record<string, string> = {};
+    cookieHeader.split(";").forEach((part) => {
+      const trimmed = part.trim();
+      const eqIdx = trimmed.indexOf("=");
+      if (eqIdx > 0) {
+        const name = trimmed.substring(0, eqIdx).trim();
+        const value = trimmed.substring(eqIdx + 1);
+        if (name) {
+          cookieMap[name] = value;
+        }
+      }
+    });
+
+    for (let currentUrl = "https://www.netflix.com/", hop = 0; hop < 6; hop++) {
+      const { status, location } = await followHop(currentUrl, cookieMap);
+      if (status >= 300 && status < 400 && location) {
+        currentUrl = location.startsWith("http") ? location : `https://www.netflix.com${location}`;
+        continue;
+      }
+      break;
+    }
+
+    for (let accountUrl = "https://www.netflix.com/YourAccount", hop = 0; hop < 4; hop++) {
+      const { status, location } = await followHop(accountUrl, cookieMap);
+      if (status >= 300 && status < 400 && location) {
+        accountUrl = location.startsWith("http") ? location : `https://www.netflix.com${location}`;
+        continue;
+      }
+      break;
+    }
+
+    for (let browseUrl = "https://www.netflix.com/browse", hop = 0; hop < 4; hop++) {
+      const { status, location } = await followHop(browseUrl, cookieMap);
+      if (status >= 300 && status < 400 && location) {
+        browseUrl = location.startsWith("http") ? location : `https://www.netflix.com${location}`;
+        continue;
+      }
+      break;
+    }
+
+    for (let loginUrl = "https://www.netflix.com/login", hop = 0; hop < 3; hop++) {
+      const { status, location } = await followHop(loginUrl, cookieMap);
+      if (status >= 300 && status < 400 && location) {
+        loginUrl = location.startsWith("http") ? location : `https://www.netflix.com${location}`;
+        continue;
+      }
+      break;
+    }
+
+    return Object.entries(cookieMap).map(([k, v]) => `${k}=${v}`).join("; ");
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    log(`Cookie enrichment failed: ${message}`);
+    return cookieHeader;
+  }
 }
 
 function decodeHexEscapes(str: string): string {
@@ -113,6 +252,87 @@ async function fetchWatchLinkFromMakizig(cookieHeader: string, netflixId?: strin
   }
 }
 
+function getNetflixActionLink(watchLink: string, target: WatchTarget): string {
+  const targetPath = target === "app" ? "unsupported" : target === "tv" ? "tv8" : "browse";
+  const match = watchLink.match(/nftoken=([^&\s]+)/);
+  if (match) {
+    const token = match[1];
+    return `https://netflix.com/?nftoken=${token}&nextPage=${encodeURIComponent(`/${targetPath}`)}`;
+  }
+  return watchLink.replace(/^(https:\/\/netflix\.com\/)[^?]*/, `$1${targetPath}`);
+}
+
+async function fetchWatchLinkFromGraphQL(cookieHeader: string): Promise<string | null> {
+  const payload = {
+    operationName: "CreateAutoLoginToken",
+    variables: { scope: "WEBVIEW_MOBILE_STREAMING" },
+    extensions: {
+      persistedQuery: {
+        version: 102,
+        id: "76e97129-f4b5-41a0-a73c-12e674896849",
+      },
+    },
+  };
+
+  try {
+    const r = await fetch(GRAPHQL_URL, {
+      method: "POST",
+      headers: {
+        "User-Agent": GRAPHQL_UA,
+        "Accept": "multipart/mixed;deferSpec=20220824, application/graphql-response+json, application/json",
+        "Content-Type": "application/json",
+        "Origin": "https://www.netflix.com",
+        "Referer": "https://www.netflix.com/",
+        "Cookie": cookieHeader,
+      },
+      body: JSON.stringify(payload),
+      signal: AbortSignal.timeout(30000),
+    });
+
+    if (!r.ok) {
+      log(`GraphQL token fetch HTTP error: ${r.status}`);
+      return null;
+    }
+
+    const data = await r.json();
+    const token = data?.data?.createAutoLoginToken;
+    if (token) {
+      return `https://netflix.com/YourAccount?nftoken=${token}`;
+    }
+
+    if (data?.errors) {
+      log(`GraphQL token fetch API error: ${JSON.stringify(data.errors)}`);
+    }
+    return null;
+  } catch (err: unknown) {
+    const message = err instanceof Error ? err.message : String(err);
+    log(`GraphQL watch link fetch failed: ${message}`);
+    return null;
+  }
+}
+
+export async function generateNetflixWatchLink(cookies: CookieObj[] | string, target: WatchTarget = "direct"): Promise<string | null> {
+  let cookieHeader = cookiesToHeader(cookies);
+  if (!cookieHeader || cookieHeader.length < 10) {
+    return null;
+  }
+
+  const needsEnrichment = isMinimalCookieSet(cookies) || hasMissingGraphQLCookies(cookieHeader);
+  if (needsEnrichment) {
+    cookieHeader = await enrichCookiesViaHTTP(cookieHeader);
+  }
+
+  let watchLink = await fetchWatchLinkFromGraphQL(cookieHeader);
+  if (!watchLink && !needsEnrichment) {
+    const enrichedForToken = await enrichCookiesViaHTTP(cookieHeader);
+    if (enrichedForToken !== cookieHeader) {
+      watchLink = await fetchWatchLinkFromGraphQL(enrichedForToken);
+    }
+  }
+
+  return watchLink ? getNetflixActionLink(watchLink, target) : null;
+}
+
 function regexExtract(html: string, pattern: RegExp): string | null {
   const match = html.match(pattern);
   return match?.[1]?.trim() || null;
@@ -159,25 +379,17 @@ async function fetchWithRedirect(url: string, cookieHeader: string): Promise<{ h
 }
 
 export async function validateNetflixCookies(cookies: any): Promise<any> {
-  const cookieHeader = cookiesToHeader(cookies);
+  let cookieHeader = cookiesToHeader(cookies);
   if (!cookieHeader || cookieHeader.length < 10) {
     return { valid: false, error: "Invalid cookie data" };
   }
 
-  try {
-    const initialRes = await fetch("https://www.netflix.com/YourAccount", {
-      method: "GET",
-      headers: {
-        "User-Agent": UA,
-        "Accept": "text/html,application/xhtml+xml,application/xml;q=0.9,*/*;q=0.8",
-        "Accept-Language": "en-US,en;q=0.5",
-        "Cookie": cookieHeader,
-      },
-      redirect: "manual",
-    });
-    const setCookieHeaders = (initialRes.headers as any).getSetCookie?.() || [];
-    const { netflixId, secureNetflixId } = extractNetflixCookies(setCookieHeaders);
+  const needsEnrichment = isMinimalCookieSet(cookies) || hasMissingGraphQLCookies(cookieHeader);
+  if (needsEnrichment) {
+    cookieHeader = await enrichCookiesViaHTTP(cookieHeader);
+  }
 
+  try {
     const { html: accountHtml, finalUrl: accountUrl } =
       await fetchWithRedirect("https://www.netflix.com/YourAccount", cookieHeader);
 
@@ -345,9 +557,15 @@ export async function validateNetflixCookies(cookies: any): Promise<any> {
                     plan?.toLowerCase().includes("basic") ? "No" :
                     plan ? "Yes" : undefined;
 
-    let watchLink = await fetchWatchLinkFromMakizig(cookieHeader, netflixId, secureNetflixId);
+    let watchLink = await fetchWatchLinkFromGraphQL(cookieHeader);
+    if (!watchLink && !needsEnrichment) {
+      const enrichedForToken = await enrichCookiesViaHTTP(cookieHeader);
+      if (enrichedForToken !== cookieHeader) {
+        watchLink = await fetchWatchLinkFromGraphQL(enrichedForToken);
+      }
+    }
     if (watchLink) {
-      watchLink = watchLink.replace(/netflix\.com\/account\?/, "netflix.com/browse?");
+      watchLink = getNetflixActionLink(watchLink, "direct");
     }
 
     const rawParts: string[] = [];
