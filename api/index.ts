@@ -524,14 +524,13 @@ async function fetchWatchLinkFromMakizig(
 }
 
 function getNetflixActionLink(watchLink: string, target: WatchTarget): string {
-  const path = target === "app" ? "/unsupported" : target === "tv" ? "/tv8" : "/browse";
-  try {
-    const url = new URL(watchLink);
-    url.pathname = path;
-    return url.toString();
-  } catch {
-    return watchLink.replace(/netflix\.com\/[^?]*\?/, `netflix.com${path}?`);
+  const targetPath = target === "app" ? "unsupported" : target === "tv" ? "tv8" : "browse";
+  const match = watchLink.match(/nftoken=([^&\s]+)/);
+  if (match) {
+    const token = match[1];
+    return `https://netflix.com/?nftoken=${token}&nextPage=${encodeURIComponent(`/${targetPath}`)}`;
   }
+  return watchLink.replace(/^(https:\/\/netflix\.com\/)[^?]*/, `$1${targetPath}`);
 }
 
 async function fetchWatchLinkFromGraphQL(cookieHeader: string): Promise<string | null> {

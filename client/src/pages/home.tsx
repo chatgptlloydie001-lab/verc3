@@ -50,30 +50,21 @@ function InfoRow({
   );
 }
 
-function getNetflixActionLink(watchLink: string, path: string) {
-  try {
-    const url = new URL(watchLink);
-    url.pathname = path;
-    return url.toString();
-  } catch {
-    return watchLink.replace(/netflix\.com\/[^?]*\?/, `netflix.com${path}?`);
+function buildNetflixLink(watchLink: string, targetPath: string): string {
+  const match = watchLink.match(/nftoken=([^&\s]+)/);
+  if (match) {
+    const token = match[1];
+    return `https://netflix.com/?nftoken=${token}&nextPage=${encodeURIComponent(`/${targetPath}`)}`;
   }
+  return watchLink.replace(/^(https:\/\/netflix\.com\/)[^?]*/, `$1${targetPath}`);
 }
-
-type WatchTarget = "direct" | "app" | "tv";
 
 function ResultPanel({
   result,
   isChecking,
-  onLaunch,
-  isLaunching,
-  launchTarget,
 }: {
   result: CheckResult | null;
   isChecking: boolean;
-  onLaunch: (target: WatchTarget, watchLink?: string) => void;
-  isLaunching: boolean;
-  launchTarget: WatchTarget | null;
 }) {
   if (isChecking) {
     return (
@@ -109,9 +100,9 @@ function ResultPanel({
     );
   }
 
-  const directWatchLink = result.watchLink;
-  const appWatchLink = result.watchLink ? getNetflixActionLink(result.watchLink, "/unsupported") : undefined;
-  const tvWatchLink = result.watchLink ? getNetflixActionLink(result.watchLink, "/tv8") : undefined;
+  const directWatchLink = result.watchLink ? buildNetflixLink(result.watchLink, "browse") : undefined;
+  const appWatchLink = result.watchLink ? buildNetflixLink(result.watchLink, "unsupported") : undefined;
+  const tvWatchLink = result.watchLink ? buildNetflixLink(result.watchLink, "tv8") : undefined;
 
   return (
     <div className="space-y-5">
@@ -147,38 +138,40 @@ function ResultPanel({
         <InfoRow icon={CreditCard} label="Billing" value={result.billing} />
       </div>
 
-      <div className="grid gap-3">
-        <button
-          type="button"
-          onClick={() => onLaunch("direct", directWatchLink)}
-          disabled={isLaunching || !directWatchLink}
-          data-testid="button-direct-watch"
-          className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-600 to-red-500 px-5 py-3.5 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-red-950/30 transition-all hover:-translate-y-0.5 hover:from-red-500 hover:to-red-400 disabled:cursor-wait disabled:opacity-70"
-        >
-          <Play className="h-4 w-4" />
-          {isLaunching && launchTarget === "direct" ? "Opening..." : "Watch now"}
-        </button>
-        <button
-          type="button"
-          onClick={() => onLaunch("app", appWatchLink)}
-          disabled={isLaunching || !appWatchLink}
-          data-testid="button-netflix-app"
-          className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.08] px-5 py-3.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/[0.12] disabled:cursor-wait disabled:opacity-70"
-        >
-          <Smartphone className="h-4 w-4" />
-          {isLaunching && launchTarget === "app" ? "Opening..." : "Watch on Netflix App"}
-        </button>
-        <button
-          type="button"
-          onClick={() => onLaunch("tv", tvWatchLink)}
-          disabled={isLaunching || !tvWatchLink}
-          data-testid="button-watch-tv"
-          className="flex items-center justify-center gap-2 rounded-2xl bg-amber-400 px-5 py-3.5 text-sm font-semibold text-black transition-all hover:-translate-y-0.5 hover:bg-amber-300 disabled:cursor-wait disabled:opacity-70"
-        >
-          <Tv className="h-4 w-4" />
-          {isLaunching && launchTarget === "tv" ? "Opening..." : "Watch on TV"}
-        </button>
-      </div>
+      {directWatchLink && (
+        <div className="grid gap-3">
+          <a
+            href={directWatchLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="button-direct-watch"
+            className="flex items-center justify-center gap-2 rounded-2xl bg-gradient-to-r from-red-600 to-red-500 px-5 py-3.5 text-sm font-semibold uppercase tracking-wide text-white shadow-lg shadow-red-950/30 transition-all hover:-translate-y-0.5 hover:from-red-500 hover:to-red-400"
+          >
+            <Play className="h-4 w-4" />
+            Watch now
+          </a>
+          <a
+            href={appWatchLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="button-netflix-app"
+            className="flex items-center justify-center gap-2 rounded-2xl border border-white/10 bg-white/[0.08] px-5 py-3.5 text-sm font-semibold text-white transition-all hover:-translate-y-0.5 hover:bg-white/[0.12]"
+          >
+            <Smartphone className="h-4 w-4" />
+            Watch on Netflix App
+          </a>
+          <a
+            href={tvWatchLink}
+            target="_blank"
+            rel="noopener noreferrer"
+            data-testid="button-watch-tv"
+            className="flex items-center justify-center gap-2 rounded-2xl bg-amber-400 px-5 py-3.5 text-sm font-semibold text-black transition-all hover:-translate-y-0.5 hover:bg-amber-300"
+          >
+            <Tv className="h-4 w-4" />
+            Watch on TV
+          </a>
+        </div>
+      )}
     </div>
   );
 }
@@ -208,7 +201,6 @@ export default function Home({ onLogout }: HomeProps) {
   const [selectedSession, setSelectedSession] = useState<CookieSession | null>(null);
   const [checkResult, setCheckResult] = useState<CheckResult | null>(null);
   const [dropdownOpen, setDropdownOpen] = useState(false);
-  const [launchTarget, setLaunchTarget] = useState<WatchTarget | null>(null);
   const dropdownRef = useRef<HTMLDivElement>(null);
   const { toast } = useToast();
 
@@ -237,17 +229,6 @@ export default function Home({ onLogout }: HomeProps) {
       toast({ title: "Check failed", description: err.message, variant: "destructive" });
     },
   });
-
-  const handleLaunch = (target: WatchTarget, watchLink?: string) => {
-    if (!watchLink) {
-      toast({ title: "Watch link unavailable", description: "Select the account again to generate a fresh nftoken.", variant: "destructive" });
-      return;
-    }
-
-    setLaunchTarget(target);
-    window.open(watchLink, "_blank", "noopener,noreferrer");
-    window.setTimeout(() => setLaunchTarget(null), 600);
-  };
 
   const handleSelect = (session: CookieSession) => {
     if (session.is_premium && !isPremium) {
@@ -440,9 +421,6 @@ export default function Home({ onLogout }: HomeProps) {
                 <ResultPanel
                   result={checkResult}
                   isChecking={checkMutation.isPending}
-                  onLaunch={handleLaunch}
-                  isLaunching={Boolean(launchTarget)}
-                  launchTarget={launchTarget}
                 />
               </div>
             </div>
